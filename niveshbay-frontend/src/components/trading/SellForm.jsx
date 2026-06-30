@@ -6,7 +6,6 @@ import toast from 'react-hot-toast';
 export default function SellForm({ symbol, currentPrice, baseBalance, user, onOrderPlaced, fillData, orderType }) {
   const [amount, setAmount] = useState('');
   const [price, setPrice] = useState('');
-  const [useTPSL, setUseTPSL] = useState(false);
   const [slider, setSlider] = useState(0);
 
   useEffect(() => {
@@ -43,8 +42,10 @@ export default function SellForm({ symbol, currentPrice, baseBalance, user, onOr
 
       const res = await placeSellOrder({
         market: dbSymbol,
-        sellpricing: isMarket ? 'market' : priceINR.toString(),
+        sellpricing: isMarket ? '0' : priceINR.toString(),
         sellamount: amountNum.toString(),
+        user_id: user.user_id || user.id,
+        order_type: isMarket ? 'MARKET' : 'LIMIT',
       });
 
       if (res.status === 1) {
@@ -131,16 +132,6 @@ export default function SellForm({ symbol, currentPrice, baseBalance, user, onOr
             </span>
             <span className="text-[#848e9c] font-semibold">INR</span>
           </div>
-
-          <label className="flex items-center gap-2 text-xs text-[#848e9c] cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={useTPSL}
-              onChange={e => setUseTPSL(e.target.checked)}
-              className="accent-[#f6465d] w-3.5 h-3.5"
-            />
-            TP/SL
-          </label>
         </div>
       </div>
 

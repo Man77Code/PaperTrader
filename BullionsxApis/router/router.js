@@ -24,6 +24,11 @@ const {
     getOpenOrders,
     getOrderHistory,
     getHoldingsDetailed,
+    getUserBalance,
+    getLatestPrice,
+    getCandleHistory,
+    getRealizedPnl,
+    getCancelledOrders,
 } = require('../controller/userdata');
 
 
@@ -166,5 +171,37 @@ router
     .route('/holdings-detailed')
     .get(getHoldingsDetailed);
 
+router
+    .route('/user-balance')
+    .get(getUserBalance);
+
+router
+    .route('/latest-price')
+    .get(getLatestPrice);
+
+router
+    .route('/candle-history')
+    .get(getCandleHistory);
+
+router
+    .route('/realized-pnl')
+    .get(getRealizedPnl);
+
+router
+    .route('/cancelled-orders')
+    .get(auth, getCancelledOrders);
+
+const { getProfile, updateProfile } = require('../controller/profile');
+
+router
+    .route('/profile')
+    .get(auth, getProfile)
+    .put(auth, updateProfile);
+
+const { getBalanceStats } = require('../controller/balanceStats');
+
+router
+    .route('/balance-stats')
+    .get(auth, getBalanceStats);
 
 module.exports = router;

@@ -96,7 +96,7 @@ module.exports = async function createUser(req, res, next) {
         if (result.affectedRows > 0) {
             await conn.query('DELETE FROM dbt_otp WHERE email = ? AND purpose = "register"', [normalizedEmail]);
 
-            const [balanceResult] = await conn.query(
+            await conn.query(
                 'INSERT INTO dbt_balance (user_id, currency_symbol, balance) VALUES (?, "INR", 200000.00000000)',
                 [user_id]
             );

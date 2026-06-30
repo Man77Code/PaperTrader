@@ -10,6 +10,8 @@ export async function placeBuyOrder(data) {
     market: data.market,
     buypricing: data.buypricing,
     buyamount: data.buyamount,
+    user_id: data.user_id,
+    order_type: data.order_type || 'LIMIT',
   });
   return res.data;
 }
@@ -19,6 +21,8 @@ export async function placeSellOrder(data) {
     market: data.market,
     sellpricing: data.sellpricing,
     sellamount: data.sellamount,
+    user_id: data.user_id,
+    order_type: data.order_type || 'LIMIT',
   });
   return res.data;
 }
@@ -60,5 +64,15 @@ export async function getMarketTrades(params) {
 
 export async function getHoldingsDetailed(userId) {
   const res = await api.get('/holdings-detailed', { params: { user_id: userId } });
+  return res.data;
+}
+
+export async function getUserBalance(userId, currencySymbol) {
+  const res = await api.get('/user-balance', { params: { user_id: userId, currency_symbol: currencySymbol } });
+  return res.data;
+}
+
+export async function getCancelledOrders(params) {
+  const res = await api.get('/cancelled-orders', { params });
   return res.data;
 }

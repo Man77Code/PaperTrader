@@ -32,6 +32,8 @@ export function AuthProvider({ children }) {
   }, [token, logout]);
 
   const login = useCallback((newToken, userData) => {
+    sessionStorage.removeItem('userBalances');
+    sessionStorage.removeItem('coinBalances');
     sessionStorage.setItem('token', newToken);
     if (userData) sessionStorage.setItem('user', JSON.stringify(userData));
     setToken(newToken);

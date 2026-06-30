@@ -91,11 +91,16 @@ export default function Navbar({ balance, portfolioValue, realizedPnl }) {
         <div className="flex items-center border-l border-[#1e2433] pl-4">
           {user ? (
             <div className="flex items-center gap-3">
-              <div className="w-7 h-7 rounded-full bg-[#0ecb81] flex items-center justify-center text-xs font-bold text-black">
-                {user.first_name?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U'}
-              </div>
-              <div className="hidden sm:block text-left">
-                <p className="text-white text-xs font-semibold leading-tight">{user.first_name || 'User'}</p>
+              <div
+                onClick={() => navigate('/me')}
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <div className="w-7 h-7 rounded-full bg-[#0ecb81] flex items-center justify-center text-xs font-bold text-black">
+                  {user.first_name?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U'}
+                </div>
+                <div className="hidden sm:block text-left">
+                  <p className="text-white text-xs font-semibold leading-tight">{user.first_name || 'User'}</p>
+                </div>
               </div>
               <button
                 onClick={logout}

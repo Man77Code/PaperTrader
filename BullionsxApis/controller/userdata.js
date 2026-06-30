@@ -253,7 +253,7 @@ exports.getMarketTrades = asyncMiddleware(async (req, res) => {
     const [rows] = await conn.query(
         `SELECT bid_price, complete_qty, complete_amount, success_time, bid_type
          FROM dbt_biding_log
-         WHERE market_symbol = ? AND bid_type = 'BUY'
+         WHERE market_symbol = ?
          ORDER BY log_id DESC
          LIMIT ?`,
         [market_symbol, parseInt(limit)]
@@ -263,8 +263,10 @@ exports.getMarketTrades = asyncMiddleware(async (req, res) => {
 });
 
 exports.getMyTrades = asyncMiddleware(async (req, res) => {
-    const { user_id, market_symbol, limit = 50 } = req.query;
-    if (!user_id) return res.status(400).json({ message: 'user_id is required.' });
+    const user_id = req.user.user_id;
+    if (!user_id) return res.status(401).json({ message: 'Authentication required.' });
+
+    const { market_symbol, limit = 50 } = req.query;
 
     const conn = await connect();
     let query = `SELECT * FROM dbt_biding_log WHERE user_id = ?`;
@@ -306,7 +308,27 @@ exports.getOrderHistory = asyncMiddleware(async (req, res) => {
     if (!user_id) return res.status(400).json({ message: 'user_id is required.' });
 
     const conn = await connect();
-    let query = `SELECT * FROM dbt_biding WHERE user_id = ? AND status IN (1, 3)`;
+    let query = `SELECT * FROM dbt_biding WHERE user_id = ? AND status = 1`;
+    const params = [user_id];
+
+    if (market_symbol) {
+        query += ' AND market_symbol = ?';
+        params.push(market_symbol);
+    }
+
+    query += ' ORDER BY open_order DESC LIMIT ?';
+    params.push(parseInt(limit));
+
+    const [rows] = await conn.query(query, params);
+    return res.status(200).json(rows);
+});
+
+exports.getCancelledOrders = asyncMiddleware(async (req, res) => {
+    const { user_id, market_symbol, limit = 50 } = req.query;
+    if (!user_id) return res.status(400).json({ message: 'user_id is required.' });
+
+    const conn = await connect();
+    let query = `SELECT * FROM dbt_biding WHERE user_id = ? AND status = 3`;
     const params = [user_id];
 
     if (market_symbol) {
@@ -359,4 +381,189 @@ exports.getHoldingsDetailed = asyncMiddleware(async (req, res) => {
     });
 
     return res.status(200).json(holdings);
+});
+
+exports.getUserBalance = asyncMiddleware(async (req, res) => {
+    const { user_id, currency_symbol } = req.query;
+    if (!user_id || !currency_symbol) {
+        return res.status(400).json({ message: 'user_id and currency_symbol are required.' });
+    }
+
+    const conn = await connect();
+    const [rows] = await conn.query(
+        'SELECT currency_symbol, balance FROM dbt_balance WHERE user_id = ? AND currency_symbol = ?',
+        [user_id, currency_symbol]
+    );
+
+    if (!rows.length) {
+        return res.status(200).json({ currency_symbol, balance: 0 });
+    }
+
+    return res.status(200).json(rows[0]);
+});
+
+exports.getLatestPrice = asyncMiddleware(async (req, res) => {
+    const { market_symbol } = req.query;
+    if (!market_symbol) {
+        return res.status(400).json({ message: 'market_symbol is required.' });
+    }
+
+    const conn = await connect();
+    const [[row]] = await conn.query(
+        `SELECT last_price, price_high_24h, price_low_24h,
+                price_change_24h, volume_24h, date
+         FROM dbt_coinhistory
+         WHERE market_symbol = ?
+         ORDER BY id DESC LIMIT 1`,
+        [market_symbol]
+    );
+
+    if (!row) {
+        return res.status(404).json({ message: 'No price data found for this market.' });
+    }
+
+    return res.status(200).json({
+        market_symbol,
+        price        : parseFloat(row.last_price),
+        high_24h     : parseFloat(row.price_high_24h),
+        low_24h      : parseFloat(row.price_low_24h),
+        change_24h   : parseFloat(row.price_change_24h),
+        volume_24h   : parseFloat(row.volume_24h),
+        updated_at   : row.date
+    });
+});
+
+exports.getCandleHistory = asyncMiddleware(async (req, res) => {
+    const { market_symbol, interval = '1m', limit = 200 } = req.query;
+    if (!market_symbol) {
+        return res.status(400).json({ message: 'market_symbol is required.' });
+    }
+
+    const conn = await connect();
+    let rows;
+
+    if (interval === '1m') {
+        [rows] = await conn.query(
+            `SELECT
+               DATE_FORMAT(date, '%Y-%m-%d %H:%i:00') AS time_bucket,
+               MAX(last_price) AS high,
+               MIN(last_price) AS low,
+               SUM(volume_1h)  AS volume
+             FROM dbt_coinhistory
+             WHERE market_symbol = ?
+             GROUP BY time_bucket
+             ORDER BY time_bucket ASC
+             LIMIT ?`,
+            [market_symbol, parseInt(limit)]
+        );
+    } else if (interval === '5m') {
+        [rows] = await conn.query(
+            `SELECT
+               FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(date)/300)*300) AS time_bucket,
+               MAX(last_price) AS high,
+               MIN(last_price) AS low,
+               SUM(volume_1h)  AS volume
+             FROM dbt_coinhistory
+             WHERE market_symbol = ?
+             GROUP BY time_bucket
+             ORDER BY time_bucket ASC
+             LIMIT ?`,
+            [market_symbol, parseInt(limit)]
+        );
+    } else if (interval === '30m') {
+        [rows] = await conn.query(
+            `SELECT
+               FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(date)/1800)*1800) AS time_bucket,
+               MAX(last_price) AS high,
+               MIN(last_price) AS low,
+               SUM(volume_1h)  AS volume
+             FROM dbt_coinhistory
+             WHERE market_symbol = ?
+             GROUP BY time_bucket
+             ORDER BY time_bucket ASC
+             LIMIT ?`,
+            [market_symbol, parseInt(limit)]
+        );
+    } else if (interval === '1h') {
+        [rows] = await conn.query(
+            `SELECT
+               DATE_FORMAT(date, '%Y-%m-%d %H:00:00') AS time_bucket,
+               MAX(last_price) AS high,
+               MIN(last_price) AS low,
+               SUM(volume_24h) AS volume
+             FROM dbt_coinhistory
+             WHERE market_symbol = ?
+             GROUP BY time_bucket
+             ORDER BY time_bucket ASC
+             LIMIT ?`,
+            [market_symbol, parseInt(limit)]
+        );
+    } else {
+        [rows] = await conn.query(
+            `SELECT
+               DATE(date) AS time_bucket,
+               MAX(last_price) AS high,
+               MIN(last_price) AS low,
+               SUM(volume_24h) AS volume
+             FROM dbt_coinhistory
+             WHERE market_symbol = ?
+             GROUP BY time_bucket
+             ORDER BY time_bucket ASC
+             LIMIT ?`,
+            [market_symbol, parseInt(limit)]
+        );
+    }
+
+    if (!rows.length) return res.status(200).json([]);
+
+    const candleData = [];
+    for (let i = 0; i < rows.length; i++) {
+        const bucket = rows[i];
+        const open  = i === 0 ? parseFloat(bucket.high) : candleData[i - 1].close;
+        const close = parseFloat(bucket.high);
+
+        const [[bucketDetail]] = await conn.query(
+            `SELECT
+               (SELECT last_price FROM dbt_coinhistory
+                WHERE market_symbol = ? AND DATE_FORMAT(date, ?) = ?
+                ORDER BY id ASC LIMIT 1) AS open_price,
+               (SELECT last_price FROM dbt_coinhistory
+                WHERE market_symbol = ? AND DATE_FORMAT(date, ?) = ?
+                ORDER BY id DESC LIMIT 1) AS close_price`,
+            [market_symbol, '%Y-%m-%d %H:%i:00', bucket.time_bucket,
+             market_symbol, '%Y-%m-%d %H:%i:00', bucket.time_bucket]
+        );
+
+        candleData.push({
+            time   : Math.floor(new Date(bucket.time_bucket).getTime() / 1000),
+            open   : parseFloat(bucketDetail?.open_price  || open),
+            high   : parseFloat(bucket.high),
+            low    : parseFloat(bucket.low),
+            close  : parseFloat(bucketDetail?.close_price || close),
+            volume : parseFloat(bucket.volume || 0)
+        });
+    }
+
+    return res.status(200).json(candleData);
+});
+
+exports.getRealizedPnl = asyncMiddleware(async (req, res) => {
+    const { user_id } = req.query;
+    if (!user_id) return res.status(400).json({ message: 'user_id is required.' });
+
+    const conn = await connect();
+    const [[row]] = await conn.query(
+        `SELECT COALESCE(
+          SUM(CASE WHEN bid_type = 'SELL' THEN complete_amount ELSE -complete_amount END) -
+          SUM(fees_amount), 0
+        ) AS realized_pnl
+        FROM dbt_biding_log
+        WHERE user_id = ?`,
+        [user_id]
+    );
+
+    return res.status(200).json({
+        user_id,
+        realized_pnl: parseFloat(row?.realized_pnl || 0)
+    });
 });

@@ -12,15 +12,17 @@ export default function Sidebar({ symbol: propSymbol }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { coins, activeCoin } = useMarketData(activeSymbol);
-  const { tradeUpdates } = useSocket() || {};
+  const { tradeUpdates, subscribeMarket, unsubscribeMarket } = useSocket() || {};
 
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [tradeTab, setTradeTab] = useState('market');
   const [myTrades, setMyTrades] = useState([]);
+  const [marketTrades, setMarketTrades] = useState([]);
   const [moverTab, setMoverTab] = useState('all');
 
   const base = activeSymbol?.split('-')[0] || 'SOL';
+  const dbSymbol = activeSymbol.replace('-', '_');
 
   // Normalize active symbol comparison
   const normalizedActiveSymbol = activeSymbol.replace(/[_/]/g, '-');
@@ -42,36 +44,69 @@ export default function Sidebar({ symbol: propSymbol }) {
     return list;
   }, [coins, search, filter]);
 
-  // Generate mock market trades centered around active price
-  const marketTrades = useMemo(() => {
-    if (tradeUpdates && tradeUpdates.length > 0) return tradeUpdates;
-    
-    const activePriceUSD = activeCoin?.price || 69.18;
-    const activePriceINR = activePriceUSD * 83;
+  // Fetch Market Trades from API
+  useEffect(() => {
+    async function fetchMarketTrades() {
+      try {
+        const res = await api.get('/market-trades', { params: { market_symbol: dbSymbol, limit: 50 } });
+        const mapped = (res.data || []).map(t => ({
+          price: parseFloat(t.bid_price),
+          amount: parseFloat(t.complete_qty),
+          side: t.bid_type === 'BUY' ? 'buy' : 'sell',
+          time: t.success_time ? new Date(t.success_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-',
+        }));
+        setMarketTrades(mapped);
+      } catch (err) {
+        console.error('Failed to fetch market trades', err);
+      }
+    }
+    if (tradeTab === 'market') {
+      fetchMarketTrades();
+    }
+  }, [tradeTab, dbSymbol]);
 
-    return Array.from({ length: 15 }, (_, i) => {
-      const price = activePriceINR + (Math.random() - 0.5) * (activePriceINR * 0.003);
-      const amount = Math.random() * (activePriceUSD > 1000 ? 0.05 : 5.0) + 0.01;
-      const isBuy = Math.random() > 0.45;
-      const now = new Date();
-      now.setSeconds(now.getSeconds() - i * 5);
-      return {
-        price,
-        amount,
-        side: isBuy ? 'buy' : 'sell',
-        time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      };
-    });
-  }, [tradeUpdates, activeCoin, activeSymbol]);
+  // Subscribe to market socket room for real-time trade events
+  useEffect(() => {
+    if (subscribeMarket) {
+      subscribeMarket(dbSymbol);
+    }
+    return () => {
+      if (unsubscribeMarket) {
+        unsubscribeMarket(dbSymbol);
+      }
+    };
+  }, [dbSymbol, subscribeMarket, unsubscribeMarket]);
 
-  // Fetch User Trades (My Trades)
+  // Apply real-time trade updates to market trades
+  useEffect(() => {
+    if (tradeUpdates && tradeUpdates.length > 0) {
+      const latest = tradeUpdates[0];
+      if (latest.market_symbol === dbSymbol) {
+        const mapped = {
+          price: parseFloat(latest.price),
+          amount: parseFloat(latest.qty),
+          side: latest.side === 'BUY' ? 'buy' : 'sell',
+          time: new Date(latest.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        };
+        setMarketTrades(prev => [mapped, ...prev].slice(0, 50));
+      }
+    }
+  }, [tradeUpdates, dbSymbol]);
+
+  // Fetch My Trades from API
   useEffect(() => {
     async function fetchMyTrades() {
       if (!user) return;
       try {
-        const dbSymbol = activeSymbol.replace('-', '_');
-        const res = await api.get(`/user_completed_order_history?market_symbol=${dbSymbol}&user_id=${user.user_id}`);
-        setMyTrades(res.data || []);
+        const res = await api.get('/my-trades', { params: { market_symbol: dbSymbol, limit: 50 } });
+        const mapped = (res.data || []).map(t => ({
+          bid_type: t.bid_type,
+          bid_price: parseFloat(t.bid_price || 0),
+          bid_qty: parseFloat(t.complete_qty || 0),
+          total: parseFloat(t.complete_amount || 0),
+          open_order: t.success_time,
+        }));
+        setMyTrades(mapped);
       } catch (err) {
         console.error('Failed to fetch user trades', err);
       }
@@ -79,7 +114,7 @@ export default function Sidebar({ symbol: propSymbol }) {
     if (tradeTab === 'my') {
       fetchMyTrades();
     }
-  }, [tradeTab, activeSymbol, user]);
+  }, [tradeTab, dbSymbol, user]);
 
   // Top Movers data matching screenshots
   const topMovers = [
@@ -91,7 +126,8 @@ export default function Sidebar({ symbol: propSymbol }) {
   ];
 
   return (
-    <div className="w-[320px] bg-[#141822] border-l border-[#1e2433] flex flex-col shrink-0 select-none h-full overflow-y-auto custom-scrollbar">
+    <div className="w-[320px] bg-[#141822] border-l border-[#1e2433] flex flex-col shrink-0 select-none h-full">
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
       {/* 1. Coin Search & Tabs */}
       <div className="p-3 border-b border-[#1e2433] bg-[#0d111b]">
         <div className="relative flex items-center bg-[#1e2433] border border-[#2b3548] rounded px-3 py-1.5 focus-within:border-[#ffd333] transition">
@@ -136,8 +172,8 @@ export default function Sidebar({ symbol: propSymbol }) {
         <span className="w-28 text-right">Last Price / 24h Chg %</span>
       </div>
 
-      {/* Coin List Scroll Container */}
-      <div className="max-h-[250px] overflow-y-auto border-b border-[#1e2433] bg-[#141822]">
+      {/* Coin List */}
+      <div className="border-b border-[#1e2433] bg-[#141822]">
         {filteredCoins.map(coin => {
           const coinSymbol = coin.market_symbol.replace(/[_]/g, '-');
           const isSelected = normalizedActiveSymbol === coinSymbol;
@@ -172,7 +208,7 @@ export default function Sidebar({ symbol: propSymbol }) {
       </div>
 
       {/* 2. Market Trades & My Trades Panel */}
-      <div className="flex border-b border-[#1e2433] text-[11px] font-bold bg-[#0d111b] mt-2">
+      <div className="flex border-b border-[#1e2433] text-[11px] font-bold bg-[#0d111b] mt-4">
         <button
           onClick={() => setTradeTab('market')}
           className={`flex-1 py-2 text-center relative transition ${
@@ -200,36 +236,42 @@ export default function Sidebar({ symbol: propSymbol }) {
       </div>
 
       {/* Trades List Container */}
-      <div className="max-h-[180px] overflow-y-auto border-b border-[#1e2433] bg-[#141822]">
+      <div className="border-b border-[#1e2433] bg-[#141822]">
         {tradeTab === 'market' ? (
-          marketTrades.map((t, i) => (
-            <div key={`m-trade-${i}`} className="flex text-[10px] px-3 py-1 hover:bg-[#1e2433]/30">
-              <span className={`flex-1 font-semibold ${t.side === 'buy' ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}>
-                {formatINR(t.price)}
-              </span>
-              <span className="w-20 text-right text-white font-medium">{formatAmount(t.amount)}</span>
-              <span className="w-20 text-right text-[#848e9c] font-medium">{t.time}</span>
-            </div>
-          ))
+          marketTrades.length === 0 ? (
+            <div className="py-8 text-center text-[#848e9c] text-xs">No trades yet</div>
+          ) : (
+            marketTrades.map((t, i) => (
+              <div key={`m-trade-${i}`} className="flex text-[10px] px-3 py-1 hover:bg-[#1e2433]/30">
+                <span className={`flex-1 font-semibold ${t.side === 'buy' ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}>
+                  {formatINR(t.price)}
+                </span>
+                <span className="w-20 text-right text-white font-medium">{formatAmount(t.amount)}</span>
+                <span className="w-20 text-right text-[#848e9c] font-medium">{t.time}</span>
+              </div>
+            ))
+          )
         ) : myTrades.length === 0 ? (
           <div className="py-8 text-center text-[#848e9c] text-xs">No trades yet</div>
         ) : (
           myTrades.map((t, i) => (
             <div key={`my-trade-${i}`} className="flex text-[10px] px-3 py-1 hover:bg-[#1e2433]/30">
               <span className={`flex-1 font-semibold ${t.bid_type === 'BUY' ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}>
-                {formatINR((t.bid_price || t.price) * 83)}
+                {formatINR(t.bid_price)}
               </span>
-              <span className="w-20 text-right text-white font-medium">{formatAmount(t.bid_qty || t.volume)}</span>
+              <span className="w-20 text-right text-white font-medium">{formatAmount(t.bid_qty)}</span>
               <span className="w-20 text-right text-[#848e9c] font-medium">
-                {new Date(t.open_order || t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {new Date(t.open_order).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
           ))
         )}
       </div>
 
+      </div>
+
       {/* 3. Top Movers Panel */}
-      <div className="p-3 bg-[#0d111b] mt-2">
+      <div className="shrink-0 p-3 bg-[#0d111b]">
         <h4 className="text-xs text-[#848e9c] font-bold uppercase tracking-wider mb-2">Top Movers</h4>
         
         {/* Movers Tabs */}

@@ -31,6 +31,12 @@ export function usePortfolio() {
     { refreshInterval: 10000 }
   );
 
+  const { data: cancelledOrders, mutate: refreshCancelledOrders } = useSWR(
+    user ? `/cancelled-orders?user_id=${user.user_id}&limit=50` : null,
+    fetcher,
+    { refreshInterval: 10000 }
+  );
+
   const { data: myTrades, mutate: refreshMyTrades } = useSWR(
     user ? `/my-trades?user_id=${user.user_id}&limit=50` : null,
     fetcher,
@@ -42,11 +48,13 @@ export function usePortfolio() {
     holdings: holdings || [],
     openOrders: openOrders || [],
     orderHistory: orderHistory || [],
+    cancelledOrders: cancelledOrders || [],
     myTrades: myTrades || [],
     refreshBalance,
     refreshHoldings,
     refreshOpenOrders,
     refreshOrderHistory,
+    refreshCancelledOrders,
     refreshMyTrades,
   };
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import Navbar from '../components/layout/Navbar';
 import Sidebar from '../components/layout/Sidebar';
@@ -10,15 +10,26 @@ import TradingPanel from '../components/trading/TradingPanel';
 import BottomTabs from '../components/bottom/BottomTabs';
 import { usePortfolio } from '../hooks/usePortfolio';
 import { useMarketData } from '../hooks/useMarketData';
+import { useSocket } from '../context/SocketContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function TradePage() {
   const { symbol: paramSymbol } = useParams();
   const symbol = paramSymbol || 'SOL-INR';
-  const { balance, orderHistory } = usePortfolio();
-  const { activeCoin, livePrice } = useMarketData(symbol);
+  const { user } = useAuth();
+  const { balance, orderHistory, refreshBalance, refreshOrderHistory } = usePortfolio();
+  const { activeCoin } = useMarketData(symbol);
+  const { balanceUpdate } = useSocket() || {};
+
+  useEffect(() => {
+    if (balanceUpdate && balanceUpdate.user_id === (user?.user_id || user?.id)) {
+      refreshBalance();
+      refreshOrderHistory();
+    }
+  }, [balanceUpdate, user, refreshBalance, refreshOrderHistory]);
   const [sellFormFillData, setSellFormFillData] = useState(null);
 
-  const currentPrice = livePrice?.price || activeCoin?.price || 5741.94;
+  const currentPrice = activeCoin?.price || 0;
 
   const portfolioValue = useMemo(() => {
     const bal = parseFloat(balance || 0);

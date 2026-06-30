@@ -1,25 +1,53 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { createChart, CandlestickSeries } from 'lightweight-charts';
-import { useCoinHistory, useMarketData } from '../../hooks/useMarketData';
+import { useMarketData } from '../../hooks/useMarketData';
 import { useSocket } from '../../context/SocketContext';
+import api from '../../api/axiosInstance';
 
 export default function TradingChart({ symbol }) {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const lastCandleRef = useRef(null);
-  const { history, refreshHistory } = useCoinHistory(symbol);
-  const { livePrice } = useMarketData(symbol);
-  const { tradeUpdates } = useSocket() || {};
-  const [interval, setInterval] = useState('1m');
+  const [candleData, setCandleData] = useState([]);
+  const { prices, tradeUpdates } = useSocket() || {};
+  const [chartInterval, setChartInterval] = useState('1m');
   const [activeTab, setActiveTab] = useState('chart');
+
+  const normalizedSymbol = symbol?.replace(/[_/]/g, '-') || 'SOL-INR';
+  const dbSymbol = symbol ? symbol.replace('-', '_') : 'SOL_INR';
+
+  const refreshChartData = useCallback(async (interval) => {
+    try {
+      const res = await api.get('/candle-history', {
+        params: { market_symbol: dbSymbol, interval: interval || chartInterval, limit: 200 }
+      });
+      const data = res.data || [];
+      setCandleData(data);
+      if (seriesRef.current && data.length > 0) {
+        const candles = data
+          .filter(c => c.time && c.open && c.high && c.low && c.close)
+          .sort((a, b) => a.time - b.time);
+        if (candles.length > 0) {
+          seriesRef.current.setData(candles);
+          lastCandleRef.current = candles[candles.length - 1];
+        }
+      }
+    } catch (e) {
+      if (seriesRef.current) seriesRef.current.setData([]);
+    }
+  }, [dbSymbol, chartInterval]);
+
+  useEffect(() => {
+    if (dbSymbol) refreshChartData(chartInterval);
+  }, [dbSymbol, chartInterval, refreshChartData]);
 
   useEffect(() => {
     const lastTrade = tradeUpdates?.[0];
-    if (lastTrade && lastTrade.market_symbol === symbol?.replace('-', '_')) {
-      refreshHistory();
+    if (lastTrade && lastTrade.market_symbol === dbSymbol) {
+      refreshChartData(chartInterval);
     }
-  }, [tradeUpdates, symbol, refreshHistory]);
+  }, [tradeUpdates, dbSymbol, chartInterval, refreshChartData]);
 
   const updateLiveCandle = useCallback((price) => {
     if (!seriesRef.current) return;
@@ -40,17 +68,18 @@ export default function TradingChart({ symbol }) {
   }, []);
 
   useEffect(() => {
-    if (livePrice?.price && seriesRef.current) {
-      updateLiveCandle(parseFloat(livePrice.price));
+    const live = prices?.[normalizedSymbol];
+    if (live?.price !== undefined && seriesRef.current) {
+      updateLiveCandle(parseFloat(live.price));
     }
-  }, [livePrice, updateLiveCandle]);
+  }, [prices, normalizedSymbol, updateLiveCandle]);
 
   // Find the last candle to display OHLC stats
   const lastCandle = useMemo(() => {
-    if (!history || history.length === 0) return null;
-    const sorted = [...history].sort((a, b) => new Date(a.date || a.created_at).getTime() - new Date(b.date || b.created_at).getTime());
+    if (!candleData || candleData.length === 0) return null;
+    const sorted = [...candleData].sort((a, b) => a.time - b.time);
     return sorted[sorted.length - 1];
-  }, [history]);
+  }, [candleData]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -108,25 +137,24 @@ export default function TradingChart({ symbol }) {
   }, []);
 
   useEffect(() => {
-    if (seriesRef.current && history.length > 0) {
-      const candleData = history
-        .filter(h => h.open && h.high && h.low && h.close)
-        .map(h => ({
-          time: Math.floor(new Date(h.date || h.created_at || h.time).getTime() / 1000),
-          open: parseFloat(h.open),
-          high: parseFloat(h.high),
-          low: parseFloat(h.low),
-          close: parseFloat(h.close),
+    if (seriesRef.current && candleData.length > 0) {
+      const candles = candleData
+        .filter(c => c.time && c.open && c.high && c.low && c.close !== undefined)
+        .map(c => ({
+          time: c.time,
+          open: parseFloat(c.open),
+          high: parseFloat(c.high),
+          low: parseFloat(c.low),
+          close: parseFloat(c.close),
         }))
-        .filter(c => c.time && c.open)
         .sort((a, b) => a.time - b.time);
 
-      if (candleData.length > 0) {
-        seriesRef.current.setData(candleData);
-        lastCandleRef.current = candleData[candleData.length - 1];
+      if (candles.length > 0) {
+        seriesRef.current.setData(candles);
+        lastCandleRef.current = candles[candles.length - 1];
       }
     }
-  }, [history]);
+  }, [candleData]);
 
   return (
     <div className="flex flex-col h-full bg-[#141822] border-b border-[#1e2433] select-none">
@@ -202,9 +230,9 @@ export default function TradingChart({ symbol }) {
           {['1m', '5m', '30m', '1h', '1D'].map(i => (
             <button
               key={i}
-              onClick={() => setInterval(i)}
+              onClick={() => { setChartInterval(i); refreshChartData(i); }}
               className={`px-2 py-0.5 rounded-sm font-semibold transition ${
-                interval === i
+                chartInterval === i
                   ? 'bg-[#1e60ff] text-white'
                   : 'text-[#848e9c] hover:text-white'
               }`}

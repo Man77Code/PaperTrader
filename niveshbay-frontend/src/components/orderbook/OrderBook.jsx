@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
 import { useOrderBook } from '../../hooks/useOrderBook';
 import { formatINR, formatAmount } from '../../utils/formatCurrency';
+import api from '../../api/axiosInstance';
 
 export default function OrderBook({ symbol, onSellFormFill }) {
   const { bids, asks } = useOrderBook(symbol);
@@ -9,8 +10,10 @@ export default function OrderBook({ symbol, onSellFormFill }) {
   const [hoveredRow, setHoveredRow] = useState(null);
   const [flashRow, setFlashRow] = useState(null);
   const hoverTimerRef = useRef(null);
+  const abortRef = useRef(null);
 
   const base = symbol?.split('-')[0] || 'SOL';
+  const dbSymbol = symbol ? symbol.replace('-', '_') : 'SOL_INR';
 
   const sortedAsks = useMemo(() =>
     [...asks].sort((a, b) => a.price - b.price).slice(0, 8),
@@ -41,6 +44,33 @@ export default function OrderBook({ symbol, onSellFormFill }) {
     return Math.max(...amounts, 1);
   }, [sortedAsks, sortedBids]);
 
+  const fetchTooltip = useCallback(async (row, side) => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const res = await api.get('/orderbook-stats', {
+        params: {
+          market_symbol: dbSymbol,
+          hover_price: row.price,
+          side: side === 'SELL' ? 'SELL' : 'BUY',
+        },
+        signal: controller.signal,
+      });
+      if (res.data) {
+        setTooltip({ sum_coin: res.data.sum_coin, sum_inr: res.data.sum_inr, avg_price: res.data.avg_price });
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        const info = getCumulativeForRow(row, side);
+        setTooltip(info);
+      }
+    }
+  }, [dbSymbol]);
+
   const getCumulativeForRow = useCallback((row, side) => {
     const list = side === 'SELL' ? asksWithCumulative : bidsWithCumulative;
     const found = list.find(r => r.price === row.price);
@@ -58,10 +88,9 @@ export default function OrderBook({ symbol, onSellFormFill }) {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
 
     hoverTimerRef.current = setTimeout(() => {
-      const info = getCumulativeForRow(row, side);
-      setTooltip({ sum_coin: info.cumulative, sum_inr: info.sumInr, avg_price: info.avgPrice });
+      fetchTooltip(row, side);
     }, 150);
-  }, [getCumulativeForRow]);
+  }, [fetchTooltip]);
 
   const handleMouseLeave = useCallback(() => {
     setHoveredRow(null);
@@ -71,13 +100,16 @@ export default function OrderBook({ symbol, onSellFormFill }) {
 
   const handleRowClick = useCallback((row, side) => {
     if (!onSellFormFill) return;
+    const list = side === 'SELL' ? asksWithCumulative : bidsWithCumulative;
+    const found = list.find(r => r.price === row.price);
+    const cumAmount = found?.cumulative || row.amount;
     onSellFormFill({
       price: row.price,
-      amount: row.cumulative || row.amount,
+      amount: cumAmount,
     });
     setFlashRow(row.price + side);
     setTimeout(() => setFlashRow(null), 300);
-  }, [onSellFormFill]);
+  }, [onSellFormFill, asksWithCumulative, bidsWithCumulative]);
 
   return (
     <div className="w-[280px] bg-[#141822] border-r border-[#1e2433] flex flex-col shrink-0 select-none h-full relative">

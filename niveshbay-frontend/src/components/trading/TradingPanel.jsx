@@ -1,26 +1,44 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import BuyForm from './BuyForm';
 import SellForm from './SellForm';
 import { useAuth } from '../../context/AuthContext';
 import { usePortfolio } from '../../hooks/usePortfolio';
+import { useSocket } from '../../context/SocketContext';
+import { getUserBalance } from '../../api/orders';
 
 export default function TradingPanel({ symbol, currentPrice, sellFormFillData }) {
   const { user } = useAuth();
-  const { balance, holdings, refreshBalance, refreshHoldings, refreshOpenOrders, refreshMyTrades } = usePortfolio();
+  const { refreshOpenOrders, refreshMyTrades } = usePortfolio();
+  const { balanceUpdate } = useSocket() || {};
   const [orderType, setOrderType] = useState('limit');
+  const [coinBalance, setCoinBalance] = useState(0);
+  const [inrBalance, setInrBalance] = useState(0);
 
   const base = symbol?.split('-')[0] || 'SOL';
 
-  const baseBalance = (holdings || [])
-    .filter(h => h.currency_symbol === base)
-    .reduce((acc, x) => acc + parseFloat(x.balance || 0), 0);
+  const loadBalances = useCallback(() => {
+    if (!user) return;
+    getUserBalance(user.user_id || user.id, base).then(r => {
+      setCoinBalance(parseFloat(r.balance || 0));
+    }).catch(() => {});
+    getUserBalance(user.user_id || user.id, 'INR').then(r => {
+      setInrBalance(parseFloat(r.balance || 0));
+    }).catch(() => {});
+  }, [user, base]);
+
+  useEffect(() => { loadBalances(); }, [loadBalances]);
+
+  useEffect(() => {
+    if (balanceUpdate && user && (balanceUpdate.user_id === (user.user_id || user.id))) {
+      loadBalances();
+    }
+  }, [balanceUpdate, user, loadBalances]);
 
   const onOrderPlaced = useCallback(() => {
-    refreshBalance();
-    refreshHoldings();
     refreshOpenOrders();
     refreshMyTrades();
-  }, [refreshBalance, refreshHoldings, refreshOpenOrders, refreshMyTrades]);
+    loadBalances();
+  }, [refreshOpenOrders, refreshMyTrades, loadBalances]);
 
   return (
     <div className="border-t border-[#1e2433] bg-[#0d111b] select-none">
@@ -29,18 +47,12 @@ export default function TradingPanel({ symbol, currentPrice, sellFormFillData })
           <span className="text-xs text-[#ffd333] px-4 py-2 border-b-2 border-[#ffd333] font-bold tracking-wide">
             Spot
           </span>
-          {['Cross', 'Isolated', 'Grid'].map(t => (
-            <span key={t} className="text-xs text-[#848e9c] px-4 py-2 hover:text-white cursor-pointer font-medium transition">
-              {t}
-            </span>
-          ))}
         </div>
-        <span className="text-[10px] text-[#848e9c]/70 px-4 font-semibold hover:text-white cursor-pointer">% Fee Level</span>
       </div>
 
       <div className="flex border-b border-[#1e2433] bg-[#0d111b]">
-        {['Limit', 'Market', 'Stop Limit'].map(t => {
-          const key = t.toLowerCase().replace(' ', '_');
+        {['Limit', 'Market'].map(t => {
+          const key = t.toLowerCase();
           const isActive = orderType === key;
           return (
             <button
@@ -50,7 +62,7 @@ export default function TradingPanel({ symbol, currentPrice, sellFormFillData })
                 isActive ? 'text-white border-b-2 border-[#ffd333]' : 'text-[#848e9c] hover:text-white'
               }`}
             >
-              {t} {t === 'Stop Limit' && '▼'}
+              {t}
             </button>
           );
         })}
@@ -60,7 +72,7 @@ export default function TradingPanel({ symbol, currentPrice, sellFormFillData })
         <BuyForm
           symbol={symbol}
           currentPrice={currentPrice}
-          balance={balance}
+          balance={inrBalance}
           user={user}
           onOrderPlaced={onOrderPlaced}
           orderType={orderType}
@@ -69,7 +81,7 @@ export default function TradingPanel({ symbol, currentPrice, sellFormFillData })
           key={sellFormFillData?._ts || 'default'}
           symbol={symbol}
           currentPrice={currentPrice}
-          baseBalance={baseBalance}
+          baseBalance={coinBalance}
           user={user}
           onOrderPlaced={onOrderPlaced}
           fillData={sellFormFillData}

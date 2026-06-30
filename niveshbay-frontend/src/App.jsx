@@ -8,6 +8,9 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import TradePage from './pages/TradePage';
 import MarketsPage from './pages/MarketsPage';
 import LeaderboardPage from './pages/LeaderboardPage';
+import ProfilePage from './pages/ProfilePage';
+import ProfileUpdatePage from './pages/ProfileUpdatePage';
+import BalanceStatsPage from './pages/BalanceStatsPage';
 
 function AuthGuard({ children }) {
   const { token, loading } = useAuth();
@@ -30,6 +33,9 @@ function AppRoutes() {
       <Route path="/trade" element={<Navigate to="/trade/SOL-INR" replace />} />
       <Route path="/markets" element={<AuthGuard><MarketsPage /></AuthGuard>} />
       <Route path="/leaderboard" element={<AuthGuard><LeaderboardPage /></AuthGuard>} />
+      <Route path="/me" element={<AuthGuard><ProfilePage /></AuthGuard>} />
+      <Route path="/me/update" element={<AuthGuard><ProfileUpdatePage /></AuthGuard>} />
+      <Route path="/balance" element={<AuthGuard><BalanceStatsPage /></AuthGuard>} />
       <Route path="*" element={<Navigate to="/trade/SOL-INR" replace />} />
     </Routes>
   );
