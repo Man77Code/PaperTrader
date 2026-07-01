@@ -28,6 +28,7 @@ export default function TradePage() {
     }
   }, [balanceUpdate, user, refreshBalance, refreshOrderHistory]);
   const [sellFormFillData, setSellFormFillData] = useState(null);
+  const [buyFormFillData, setBuyFormFillData] = useState(null);
 
   const currentPrice = activeCoin?.price || 0;
 
@@ -46,13 +47,17 @@ export default function TradePage() {
     setSellFormFillData({ ...data, _ts: Date.now() });
   };
 
+  const handleBuyFormFill = (data) => {
+    setBuyFormFillData({ ...data, _ts: Date.now() });
+  };
+
   return (
     <div className="h-screen flex flex-col bg-[#0b0f19] text-white">
       <Navbar balance={balance} portfolioValue={portfolioValue} realizedPnl={realizedPnl} />
       <PriceHeader symbol={symbol} />
 
       <div className="flex flex-1 overflow-hidden">
-        <OrderBook symbol={symbol} onSellFormFill={handleSellFormFill} />
+        <OrderBook symbol={symbol} onSellFormFill={handleSellFormFill} onBuyFormFill={handleBuyFormFill} />
 
         <div className="flex-1 flex flex-col min-w-0 overflow-y-auto custom-scrollbar">
           <div className="flex-1 min-h-[350px]">
@@ -61,7 +66,7 @@ export default function TradePage() {
             </ErrorBoundary>
           </div>
 
-          <TradingPanel symbol={symbol} currentPrice={currentPrice} sellFormFillData={sellFormFillData} />
+          <TradingPanel symbol={symbol} currentPrice={currentPrice} sellFormFillData={sellFormFillData} buyFormFillData={buyFormFillData} />
 
           <BottomTabs symbol={symbol} />
         </div>

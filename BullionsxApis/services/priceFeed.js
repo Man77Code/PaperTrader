@@ -127,16 +127,19 @@ async function priceTick(io) {
             );
 
             if (io) {
+                const change24h = currentPrice - prevClose;
+                const changePercent24h = prevClose > 0 ? (change24h / prevClose) * 100 : 0;
                 io.to(pair.market_symbol).emit('price_update', {
-                    market_symbol  : pair.market_symbol,
-                    coin_symbol    : coinSymbol,
-                    price          : currentPrice,
-                    price_change_1h: currentPrice - prevClose,
-                    price_change_24h: currentPrice - prevClose,
-                    high_24h       : parseFloat(h24High.v),
-                    low_24h        : parseFloat(h24Low.v),
-                    volume_24h     : parseFloat(h24Vol.v),
-                    timestamp      : now.getTime()
+                    market_symbol     : pair.market_symbol,
+                    coin_symbol       : coinSymbol,
+                    price             : currentPrice,
+                    price_change_1h   : currentPrice - prevClose,
+                    price_change_24h  : change24h,
+                    change_percent_24h: changePercent24h,
+                    high_24h          : parseFloat(h24High.v),
+                    low_24h           : parseFloat(h24Low.v),
+                    volume_24h        : parseFloat(h24Vol.v),
+                    timestamp         : now.getTime()
                 });
             }
         }

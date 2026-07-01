@@ -1,10 +1,12 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useOrderBook } from '../../hooks/useOrderBook';
 import { formatINR, formatAmount } from '../../utils/formatCurrency';
+import { useSocket } from '../../context/SocketContext';
 import api from '../../api/axiosInstance';
 
-export default function OrderBook({ symbol, onSellFormFill }) {
-  const { bids, asks } = useOrderBook(symbol);
+export default function OrderBook({ symbol, onSellFormFill, onBuyFormFill }) {
+  const { bids, asks, lastTradePrice: hookLastTrade } = useOrderBook(symbol);
+  const { orderBookUpdates, tradeUpdates } = useSocket() || {};
   const [rounding, setRounding] = useState('0.01');
   const [tooltip, setTooltip] = useState(null);
   const [hoveredRow, setHoveredRow] = useState(null);
@@ -12,8 +14,47 @@ export default function OrderBook({ symbol, onSellFormFill }) {
   const hoverTimerRef = useRef(null);
   const abortRef = useRef(null);
 
+  const [lastTradePrice, setLastTradePrice] = useState(0);
+  const [prevTradePrice, setPrevTradePrice] = useState(0);
+  const [tradeDirection, setTradeDirection] = useState('neutral');
+
   const base = symbol?.split('-')[0] || 'SOL';
   const dbSymbol = symbol ? symbol.replace('-', '_') : 'SOL_INR';
+
+  useEffect(() => {
+    if (hookLastTrade && hookLastTrade > 0 && lastTradePrice === 0) {
+      setLastTradePrice(hookLastTrade);
+    }
+  }, [hookLastTrade, lastTradePrice]);
+
+  useEffect(() => {
+    if (orderBookUpdates?.last_trade_price !== undefined && orderBookUpdates.last_trade_price > 0) {
+      const newPrice = orderBookUpdates.last_trade_price;
+      if (lastTradePrice > 0) {
+        if (newPrice > lastTradePrice) setTradeDirection('up');
+        else if (newPrice < lastTradePrice) setTradeDirection('down');
+        else setTradeDirection('neutral');
+      }
+      setPrevTradePrice(lastTradePrice);
+      setLastTradePrice(newPrice);
+    }
+  }, [orderBookUpdates?.last_trade_price]);
+
+  useEffect(() => {
+    if (tradeUpdates && tradeUpdates.length > 0) {
+      const latest = tradeUpdates[0];
+      if (latest?.price && latest.market_symbol === dbSymbol) {
+        const newPrice = latest.price;
+        if (lastTradePrice > 0) {
+          if (newPrice > lastTradePrice) setTradeDirection('up');
+          else if (newPrice < lastTradePrice) setTradeDirection('down');
+          else setTradeDirection('neutral');
+        }
+        setPrevTradePrice(lastTradePrice);
+        setLastTradePrice(newPrice);
+      }
+    }
+  }, [tradeUpdates, dbSymbol, lastTradePrice]);
 
   const sortedAsks = useMemo(() =>
     [...asks].sort((a, b) => a.price - b.price).slice(0, 8),
@@ -34,10 +75,6 @@ export default function OrderBook({ symbol, onSellFormFill }) {
     let cum = 0;
     return sortedBids.map(b => { cum += b.amount; return { ...b, cumulative: cum }; });
   }, [sortedBids]);
-
-  const currentPriceINR = sortedBids.length > 0
-    ? (sortedBids[0].price + (sortedAsks[0]?.price || sortedBids[0].price)) / 2
-    : 0;
 
   const maxAmount = useMemo(() => {
     const amounts = [...sortedAsks, ...sortedBids].map(x => x.amount);
@@ -99,17 +136,45 @@ export default function OrderBook({ symbol, onSellFormFill }) {
   }, []);
 
   const handleRowClick = useCallback((row, side) => {
-    if (!onSellFormFill) return;
     const list = side === 'SELL' ? asksWithCumulative : bidsWithCumulative;
     const found = list.find(r => r.price === row.price);
     const cumAmount = found?.cumulative || row.amount;
-    onSellFormFill({
-      price: row.price,
-      amount: cumAmount,
-    });
+
+    if (side === 'SELL') {
+      if (onBuyFormFill) onBuyFormFill({ price: row.price, amount: cumAmount });
+      if (onSellFormFill) onSellFormFill({ price: row.price, amount: 0 });
+    } else {
+      if (onSellFormFill) onSellFormFill({ price: row.price, amount: cumAmount });
+      if (onBuyFormFill) onBuyFormFill({ price: row.price, amount: 0 });
+    }
+
     setFlashRow(row.price + side);
     setTimeout(() => setFlashRow(null), 300);
-  }, [onSellFormFill, asksWithCumulative, bidsWithCumulative]);
+  }, [onSellFormFill, onBuyFormFill, asksWithCumulative, bidsWithCumulative]);
+
+  const arrowIcon = tradeDirection === 'up'
+    ? (
+      <svg className="w-3.5 h-3.5 fill-current text-[#0ecb81]" viewBox="0 0 24 24">
+        <path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z" />
+      </svg>
+    )
+    : tradeDirection === 'down'
+    ? (
+      <svg className="w-3.5 h-3.5 fill-current text-[#f6465d]" viewBox="0 0 24 24" transform="rotate(180)">
+        <path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z" />
+      </svg>
+    )
+    : (
+      <svg className="w-3.5 h-3.5 fill-current text-[#848e9c]" viewBox="0 0 24 24">
+        <path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z" />
+      </svg>
+    );
+
+  const tradeChangePercent = prevTradePrice > 0 && lastTradePrice > 0
+    ? ((lastTradePrice - prevTradePrice) / prevTradePrice) * 100
+    : 0;
+
+  const midPriceColor = tradeDirection === 'up' ? '#0ecb81' : tradeDirection === 'down' ? '#f6465d' : '#848e9c';
 
   return (
     <div className="w-[280px] bg-[#141822] border-r border-[#1e2433] flex flex-col shrink-0 select-none h-full relative">
@@ -165,13 +230,16 @@ export default function OrderBook({ symbol, onSellFormFill }) {
         })}
       </div>
 
-      <div className="px-3 py-2 border-y border-[#1e2433] flex items-center justify-center bg-[#0d111b] gap-2">
-        <span className="text-sm font-bold text-[#0ecb81] tracking-wide flex items-center gap-1">
-          <svg className="w-3.5 h-3.5 fill-current text-[#0ecb81]" viewBox="0 0 24 24">
-            <path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z" />
-          </svg>
-          {formatINR(currentPriceINR)}
+      <div className="px-3 py-2 border-y border-[#1e2433] flex items-center justify-center bg-[#0d111b] gap-1 flex-col">
+        <span className="text-xs font-bold tracking-wide flex items-center gap-1" style={{ color: midPriceColor }}>
+          {arrowIcon}
+          {tradeChangePercent !== 0
+            ? `${tradeDirection === 'up' ? '+' : ''}${tradeChangePercent.toFixed(2)}%`
+            : lastTradePrice > 0 ? formatINR(lastTradePrice) : '--'}
         </span>
+        {lastTradePrice > 0 && (
+          <span className="text-[10px] text-[#848e9c]">{formatINR(lastTradePrice)}</span>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">

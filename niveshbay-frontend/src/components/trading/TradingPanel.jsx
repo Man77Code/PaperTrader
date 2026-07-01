@@ -6,7 +6,7 @@ import { usePortfolio } from '../../hooks/usePortfolio';
 import { useSocket } from '../../context/SocketContext';
 import { getUserBalance } from '../../api/orders';
 
-export default function TradingPanel({ symbol, currentPrice, sellFormFillData }) {
+export default function TradingPanel({ symbol, currentPrice, sellFormFillData, buyFormFillData }) {
   const { user } = useAuth();
   const { refreshOpenOrders, refreshMyTrades } = usePortfolio();
   const { balanceUpdate } = useSocket() || {};
@@ -76,9 +76,9 @@ export default function TradingPanel({ symbol, currentPrice, sellFormFillData })
           user={user}
           onOrderPlaced={onOrderPlaced}
           orderType={orderType}
+          fillData={buyFormFillData}
         />
         <SellForm
-          key={sellFormFillData?._ts || 'default'}
           symbol={symbol}
           currentPrice={currentPrice}
           baseBalance={coinBalance}

@@ -150,12 +150,45 @@ async function broadcastOrderBook(io, conn, marketSymbol) {
     [marketSymbol]
   );
 
+  const [[lastTradeRow]] = await conn.query(
+    'SELECT bid_price FROM dbt_biding_log WHERE market_symbol = ? ORDER BY log_id DESC LIMIT 1',
+    [marketSymbol]
+  );
+
   io.to(marketSymbol).emit('orderbook_update', {
     market_symbol: marketSymbol,
     buy_orders: buyOrders,
     sell_orders: sellOrders,
+    last_trade_price: lastTradeRow ? parseFloat(lastTradeRow.bid_price) : 0,
     timestamp: Date.now()
   });
+
+  // Also emit price_update so PriceHeader updates immediately on trade
+  const [[latestStats]] = await conn.query(
+    `SELECT last_price, price_high_24h, price_low_24h, price_change_24h, volume_24h
+     FROM dbt_coinhistory
+     WHERE market_symbol = ?
+     ORDER BY id DESC LIMIT 1`,
+    [marketSymbol]
+  );
+
+  if (latestStats) {
+    const statsLastPrice = parseFloat(latestStats.last_price);
+    const change24h = parseFloat(latestStats.price_change_24h);
+    const prevClose24h = statsLastPrice - change24h;
+    const changePercent24h = prevClose24h > 0 ? (change24h / prevClose24h) * 100 : 0;
+
+    io.to(marketSymbol).emit('price_update', {
+      market_symbol: marketSymbol,
+      price: lastTradeRow ? parseFloat(lastTradeRow.bid_price) : statsLastPrice,
+      price_change_24h: change24h,
+      change_percent_24h: changePercent24h,
+      high_24h: parseFloat(latestStats.price_high_24h),
+      low_24h: parseFloat(latestStats.price_low_24h),
+      volume_24h: parseFloat(latestStats.volume_24h),
+      timestamp: Date.now()
+    });
+  }
 }
 
 function broadcastMarketTrade(io, marketSymbol, tradeData) {
@@ -417,13 +450,14 @@ exports.placeBuyOrder = async (req, res) => {
 
     if (orderType === 'MARKET') {
       const [checkOrder] = await conn.query(
-        'SELECT bid_qty_available, status FROM dbt_biding WHERE id = ?',
+        'SELECT bid_qty_available, amount_available, status FROM dbt_biding WHERE id = ?',
         [newOrder.id]
       );
       if (checkOrder[0]?.status === 2 && parseFloat(checkOrder[0]?.bid_qty_available || 0) > 0.000000001) {
         const qtyLeft = parseFloat(checkOrder[0].bid_qty_available);
+        const remainingAmt = parseFloat(checkOrder[0].amount_available || 0);
         await conn.query('UPDATE dbt_biding SET status = 3 WHERE id = ?', [newOrder.id]);
-        const refundAmount = qtyLeft * finalRate + calcFee(qtyLeft, finalRate, buyFeesPct);
+        const refundAmount = remainingAmt + calcFee(qtyLeft, finalRate, buyFeesPct);
         await adjustBalance(conn, userId, quoteSymbol, +refundAmount);
         await logBalanceChange(conn, {
           userId,

@@ -3,19 +3,27 @@ import { formatINR } from '../../utils/formatCurrency';
 import { placeBuyOrder } from '../../api/orders';
 import toast from 'react-hot-toast';
 
-export default function BuyForm({ symbol, currentPrice, balance, user, onOrderPlaced, orderType }) {
+export default function BuyForm({ symbol, currentPrice, balance, user, onOrderPlaced, orderType, fillData }) {
   const [amount, setAmount] = useState('');
   const [price, setPrice] = useState('');
   const [slider, setSlider] = useState(0);
 
   useEffect(() => {
+    if (fillData) {
+      setPrice(fillData.price?.toString() || '');
+      setAmount(fillData.amount?.toFixed(4) || '');
+      setSlider(0);
+      return;
+    }
     setPrice(currentPrice ? currentPrice.toString() : '');
-  }, [symbol, currentPrice]);
+  }, [symbol, currentPrice, fillData]);
 
   useEffect(() => {
-    setAmount('');
-    setSlider(0);
-  }, [symbol]);
+    if (!fillData) {
+      setAmount('');
+      setSlider(0);
+    }
+  }, [symbol, fillData]);
 
   const isMarket = orderType === 'market';
   const priceINR = isMarket ? (currentPrice || 5741.94) : (parseFloat(price) || currentPrice || 5741.94);

@@ -8,14 +8,16 @@ export function useOrderBook(symbol) {
   const [bids, setBids] = useState([]);
   const [asks, setAsks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [lastTradePrice, setLastTradePrice] = useState(0);
   const { orderBookUpdates, subscribeMarket, unsubscribeMarket, connected } = useSocket() || {};
   const subscribedRef = useRef(false);
 
   const fetchOrderBook = useCallback(async () => {
     try {
-      const [buyRes, sellRes] = await Promise.all([
+      const [buyRes, sellRes, priceRes] = await Promise.all([
         api.get('/openbuyorder', { params: { market_symbol: dbSymbol } }),
         api.get('/opensellorder', { params: { market_symbol: dbSymbol } }),
+        api.get('/latest-price', { params: { market_symbol: dbSymbol } }).catch(() => null),
       ]);
 
       const buyOrders = (buyRes.data || []).map(o => ({
@@ -33,6 +35,10 @@ export function useOrderBook(symbol) {
       setBids(buyOrders);
       setAsks(sellOrders);
       setLoading(false);
+
+      if (priceRes?.data?.last_trade_price) {
+        setLastTradePrice(parseFloat(priceRes.data.last_trade_price));
+      }
     } catch {
       setLoading(false);
     }
@@ -69,12 +75,16 @@ export function useOrderBook(symbol) {
       }));
       setBids(buyOrders);
       setAsks(sellOrders);
+      if (orderBookUpdates.last_trade_price) {
+        setLastTradePrice(parseFloat(orderBookUpdates.last_trade_price));
+      }
     }
   }, [orderBookUpdates, dbSymbol]);
 
   return {
     bids,
     asks,
+    lastTradePrice,
     isLoading: loading,
   };
 }

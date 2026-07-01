@@ -409,6 +409,7 @@ exports.getLatestPrice = asyncMiddleware(async (req, res) => {
     }
 
     const conn = await connect();
+
     const [[row]] = await conn.query(
         `SELECT last_price, price_high_24h, price_low_24h,
                 price_change_24h, volume_24h, date
@@ -422,14 +423,44 @@ exports.getLatestPrice = asyncMiddleware(async (req, res) => {
         return res.status(404).json({ message: 'No price data found for this market.' });
     }
 
+    const currentPrice = parseFloat(row.last_price);
+
+    const [[prevDayRow]] = await conn.query(
+        'SELECT last_price FROM dbt_coinhistory WHERE market_symbol = ? AND date <= DATE_SUB(NOW(), INTERVAL 24 HOUR) ORDER BY id DESC LIMIT 1',
+        [market_symbol]
+    );
+
+    let prevClose = 0;
+    if (prevDayRow && parseFloat(prevDayRow.last_price) > 0) {
+        prevClose = parseFloat(prevDayRow.last_price);
+    } else {
+        const [[prevRow]] = await conn.query(
+            'SELECT last_price FROM dbt_coinhistory WHERE market_symbol = ? ORDER BY id DESC LIMIT 1,1',
+            [market_symbol]
+        );
+        if (prevRow) prevClose = parseFloat(prevRow.last_price);
+    }
+
+    let changePercent24h = 0;
+    if (prevClose > 0) {
+        changePercent24h = ((currentPrice - prevClose) / prevClose) * 100;
+    }
+
+    const [[tradeRow]] = await conn.query(
+        'SELECT bid_price FROM dbt_biding_log WHERE market_symbol = ? ORDER BY log_id DESC LIMIT 1',
+        [market_symbol]
+    );
+
     return res.status(200).json({
         market_symbol,
-        price        : parseFloat(row.last_price),
-        high_24h     : parseFloat(row.price_high_24h),
-        low_24h      : parseFloat(row.price_low_24h),
-        change_24h   : parseFloat(row.price_change_24h),
-        volume_24h   : parseFloat(row.volume_24h),
-        updated_at   : row.date
+        price              : currentPrice,
+        high_24h           : parseFloat(row.price_high_24h),
+        low_24h            : parseFloat(row.price_low_24h),
+        change_24h         : parseFloat(row.price_change_24h),
+        change_percent_24h : changePercent24h,
+        volume_24h         : parseFloat(row.volume_24h),
+        last_trade_price   : tradeRow ? parseFloat(tradeRow.bid_price) : 0,
+        updated_at         : row.date
     });
 });
 
