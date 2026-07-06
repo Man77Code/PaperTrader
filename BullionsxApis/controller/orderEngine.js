@@ -392,23 +392,33 @@ exports.placeBuyOrder = async (req, res) => {
     const sellFeesPct = await getFeePercent(conn, 'SELL', quoteSymbol);
 
     let finalRate;
+    let totalAmount;
     if (orderType === 'MARKET') {
-      const [bestSell] = await conn.query(
-        'SELECT bid_price FROM dbt_biding WHERE market_symbol = ? AND bid_type = "SELL" AND status = 2 ORDER BY bid_price ASC LIMIT 1',
+      const [allSells] = await conn.query(
+        'SELECT bid_price, bid_qty_available FROM dbt_biding WHERE market_symbol = ? AND bid_type = "SELL" AND status = 2 ORDER BY bid_price ASC',
         [market]
       );
-      if (!bestSell.length) {
+      if (!allSells.length) {
         await conn.rollback();
         conn.release();
         return res.json({ status: 0, message: 'No sell orders available.' });
       }
-      finalRate = parseFloat(bestSell[0].bid_price);
+      finalRate = parseFloat(allSells[0].bid_price);
+      let totalCost = 0;
+      let remQty = qty;
+      for (const sell of allSells) {
+        const fillQty = Math.min(remQty, parseFloat(sell.bid_qty_available));
+        totalCost += fillQty * parseFloat(sell.bid_price);
+        remQty -= fillQty;
+        if (remQty <= 0.000000001) break;
+      }
+      totalAmount = totalCost;
     } else {
       finalRate = parseFloat(buypricing);
+      totalAmount = finalRate * qty;
     }
 
     const feesAmount = calcFee(qty, finalRate, buyFeesPct);
-    const totalAmount = finalRate * qty;
     const totalDebit = totalAmount + feesAmount;
 
     const buyerBal = await getBalance(conn, userId, quoteSymbol);
@@ -536,22 +546,31 @@ exports.placeSellOrder = async (req, res) => {
     });
 
     let finalRate;
+    let totalAmount;
     if (orderType === 'MARKET') {
-      const [bestBuy] = await conn.query(
-        'SELECT bid_price FROM dbt_biding WHERE market_symbol = ? AND bid_type = "BUY" AND status = 2 ORDER BY bid_price DESC LIMIT 1',
+      const [allBuys] = await conn.query(
+        'SELECT bid_price, bid_qty_available FROM dbt_biding WHERE market_symbol = ? AND bid_type = "BUY" AND status = 2 ORDER BY bid_price DESC',
         [market]
       );
-      if (!bestBuy.length) {
+      if (!allBuys.length) {
         await conn.rollback();
         conn.release();
         return res.json({ status: 0, message: 'No buy orders available.' });
       }
-      finalRate = parseFloat(bestBuy[0].bid_price);
+      finalRate = parseFloat(allBuys[0].bid_price);
+      let totalRevenue = 0;
+      let remQty = qty;
+      for (const buy of allBuys) {
+        const fillQty = Math.min(remQty, parseFloat(buy.bid_qty_available));
+        totalRevenue += fillQty * parseFloat(buy.bid_price);
+        remQty -= fillQty;
+        if (remQty <= 0.000000001) break;
+      }
+      totalAmount = totalRevenue;
     } else {
       finalRate = parseFloat(sellpricing);
+      totalAmount = finalRate * qty;
     }
-
-    const totalAmount = finalRate * qty;
     const openDate = new Date();
 
     const [insertResult] = await conn.query(
