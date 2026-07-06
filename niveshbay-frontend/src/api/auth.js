@@ -11,6 +11,14 @@ export async function registerUser(data) {
   return res.data;
 }
 
+export async function adminLogin(data) {
+  const res = await api.post('/api/v1/admin/login', {
+    email: data.email,
+    password: data.password,
+  });
+  return res.data;
+}
+
 export async function loginUser(data) {
   const res = await api.post('/login', {
     email: data.email,

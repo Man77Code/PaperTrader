@@ -29,6 +29,7 @@ app.use('/', router);
 app.use(error);
 
 const { startPriceFeed } = require('./services/priceFeed');
+const { startStakingPayout } = require('./services/stakingPayout');
 
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
@@ -59,4 +60,5 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Your application is running on PORT ${PORT}`);
   startPriceFeed(io, parseInt(process.env.PRICE_FEED_INTERVAL_MS || '5000'));
+  startStakingPayout(io, parseInt(process.env.STAKING_PAYOUT_INTERVAL_MS || '60000'));
 });

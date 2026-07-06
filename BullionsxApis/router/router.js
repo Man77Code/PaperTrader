@@ -30,7 +30,7 @@ const {
     getRealizedPnl,
     getCancelledOrders,
 } = require('../controller/userdata');
-
+const { adminLogin } = require('../controller/adminLogin');
 
 router
     .route('/send-otp')
@@ -52,6 +52,10 @@ router
 router
     .route('/login')
     .post(loginUser);
+
+router
+    .route('/api/v1/admin/login')
+    .post(adminLogin);
 
 
 router
@@ -191,6 +195,8 @@ router
     .route('/cancelled-orders')
     .get(auth, getCancelledOrders);
 
+const stakingRouter = require('./staking');
+
 const { getProfile, updateProfile } = require('../controller/profile');
 
 router
@@ -203,5 +209,7 @@ const { getBalanceStats } = require('../controller/balanceStats');
 router
     .route('/balance-stats')
     .get(auth, getBalanceStats);
+
+router.use('/api/v1/staking', stakingRouter);
 
 module.exports = router;

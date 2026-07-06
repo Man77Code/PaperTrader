@@ -126,6 +126,14 @@ async function updateCoinHistory(conn, { coinSymbol, marketSymbol, executedPrice
 async function broadcastOrderBook(io, conn, marketSymbol) {
   if (!io) return;
 
+  let ownConn = false;
+  let pool;
+  if (!conn) {
+    pool = await connect();
+    conn = pool;
+    ownConn = true;
+  }
+
   const [buyOrders] = await conn.query(
     `SELECT bid_price, SUM(bid_qty_available) AS total_qty,
             COUNT(*) AS order_count,
@@ -188,6 +196,10 @@ async function broadcastOrderBook(io, conn, marketSymbol) {
       volume_24h: parseFloat(latestStats.volume_24h),
       timestamp: Date.now()
     });
+  }
+
+  if (ownConn && typeof conn.release === 'function') {
+    conn.release();
   }
 }
 
@@ -458,6 +470,7 @@ exports.placeBuyOrder = async (req, res) => {
     const io = req.app.get('io');
     await matchAndSettle(conn, newOrder, buyFeesPct, sellFeesPct, quoteSymbol, coinSymbol, orderType, io, req.ip);
 
+    let autoCancelled = false;
     if (orderType === 'MARKET') {
       const [checkOrder] = await conn.query(
         'SELECT bid_qty_available, amount_available, status FROM dbt_biding WHERE id = ?',
@@ -477,11 +490,18 @@ exports.placeBuyOrder = async (req, res) => {
           fees: 0,
           ip: req.ip
         });
+        autoCancelled = true;
       }
     }
 
     await conn.commit();
     conn.release();
+
+    if (autoCancelled) {
+      const ioAfter = req.app.get('io');
+      if (ioAfter) await broadcastOrderBook(ioAfter, null, market);
+    }
+
     const io2 = req.app.get('io');
     if (io2) {
       io2.to(`user_${userId}`).emit('balance_update', { user_id: userId });
@@ -592,6 +612,7 @@ exports.placeSellOrder = async (req, res) => {
     const io = req.app.get('io');
     await matchAndSettle(conn, newOrder, buyFeesPct, sellFeesPct, quoteSymbol, coinSymbol, orderType, io, req.ip);
 
+    let autoCancelled = false;
     if (orderType === 'MARKET') {
       const [checkOrder] = await conn.query(
         'SELECT bid_qty_available, status FROM dbt_biding WHERE id = ?',
@@ -609,11 +630,18 @@ exports.placeSellOrder = async (req, res) => {
           fees: 0,
           ip: req.ip
         });
+        autoCancelled = true;
       }
     }
 
     await conn.commit();
     conn.release();
+
+    if (autoCancelled) {
+      const ioAfter = req.app.get('io');
+      if (ioAfter) await broadcastOrderBook(ioAfter, null, market);
+    }
+
     const io2 = req.app.get('io');
     if (io2) {
       io2.to(`user_${userId}`).emit('balance_update', { user_id: userId });

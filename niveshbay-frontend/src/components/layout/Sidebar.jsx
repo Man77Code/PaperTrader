@@ -128,6 +128,12 @@ export default function Sidebar({ symbol: propSymbol }) {
   return (
     <div className="w-[320px] bg-[#141822] border-l border-[#1e2433] flex flex-col shrink-0 select-none h-full">
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+      {/* Nav Links */}
+      <div className="flex border-b border-[#1e2433] text-[11px] font-bold bg-[#0d111b]">
+        <span className="flex-1 py-2 text-center text-[#ffd333] border-b-2 border-[#ffd333]">
+          Trade
+        </span>
+      </div>
       {/* 1. Coin Search & Tabs */}
       <div className="p-3 border-b border-[#1e2433] bg-[#0d111b]">
         <div className="relative flex items-center bg-[#1e2433] border border-[#2b3548] rounded px-3 py-1.5 focus-within:border-[#ffd333] transition">

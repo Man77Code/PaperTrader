@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 import { Toaster } from 'react-hot-toast';
 import LoginPage from './pages/LoginPage';
+import AdminLoginPage from './pages/AdminLoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import TradePage from './pages/TradePage';
@@ -11,6 +12,9 @@ import LeaderboardPage from './pages/LeaderboardPage';
 import ProfilePage from './pages/ProfilePage';
 import ProfileUpdatePage from './pages/ProfileUpdatePage';
 import BalanceStatsPage from './pages/BalanceStatsPage';
+import StakingPage from './pages/StakingPage';
+import MyStakingPage from './pages/MyStakingPage';
+import AdminStakingPage from './pages/AdminStakingPage';
 
 function AuthGuard({ children }) {
   const { token, loading } = useAuth();
@@ -27,6 +31,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/trade/:symbol" element={<AuthGuard><TradePage /></AuthGuard>} />
@@ -36,6 +41,9 @@ function AppRoutes() {
       <Route path="/me" element={<AuthGuard><ProfilePage /></AuthGuard>} />
       <Route path="/me/update" element={<AuthGuard><ProfileUpdatePage /></AuthGuard>} />
       <Route path="/balance" element={<AuthGuard><BalanceStatsPage /></AuthGuard>} />
+      <Route path="/staking" element={<AuthGuard><StakingPage /></AuthGuard>} />
+      <Route path="/my-staking" element={<AuthGuard><MyStakingPage /></AuthGuard>} />
+      <Route path="/admin/staking" element={<AuthGuard><AdminStakingPage /></AuthGuard>} />
       <Route path="*" element={<Navigate to="/trade/SOL-INR" replace />} />
     </Routes>
   );
