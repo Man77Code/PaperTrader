@@ -16,7 +16,7 @@ export default function AdminLoginPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      navigate('/admin/staking', { replace: true });
+      navigate('/admin/withdrawals', { replace: true });
     }
   }, [user, authLoading, navigate]);
 

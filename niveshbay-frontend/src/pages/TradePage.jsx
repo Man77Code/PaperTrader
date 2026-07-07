@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import Navbar from '../components/layout/Navbar';
 import Sidebar from '../components/layout/Sidebar';
@@ -9,6 +9,7 @@ import PriceHeader from '../components/common/PriceHeader';
 import TradingPanel from '../components/trading/TradingPanel';
 import BottomTabs from '../components/bottom/BottomTabs';
 import { usePortfolio } from '../hooks/usePortfolio';
+import { useBalanceStats } from '../hooks/useBalanceStats';
 import { useMarketData } from '../hooks/useMarketData';
 import { useSocket } from '../context/SocketContext';
 import { useAuth } from '../context/AuthContext';
@@ -18,6 +19,7 @@ export default function TradePage() {
   const symbol = paramSymbol || 'SOL-INR';
   const { user } = useAuth();
   const { balance, orderHistory, refreshBalance, refreshOrderHistory } = usePortfolio();
+  const { stats } = useBalanceStats();
   const { activeCoin } = useMarketData(symbol);
   const { balanceUpdate } = useSocket() || {};
 
@@ -32,16 +34,9 @@ export default function TradePage() {
 
   const currentPrice = activeCoin?.price || 0;
 
-  const portfolioValue = useMemo(() => {
-    const bal = parseFloat(balance || 0);
-    return bal || 0;
-  }, [balance]);
+  const portfolioValue = stats?.total_portfolio_value || 0;
 
-  const realizedPnl = useMemo(() => {
-    return (orderHistory || []).reduce((sum, o) => {
-      return sum + parseFloat(o.complete_amount || o.amount || 0);
-    }, 0);
-  }, [orderHistory]);
+  const realizedPnl = stats?.realized_pnl || 0;
 
   const handleSellFormFill = (data) => {
     setSellFormFillData({ ...data, _ts: Date.now() });

@@ -117,7 +117,7 @@ module.exports = async function createUser(req, res, next) {
             conn.release();
             conn = null;
 
-            const token = jwt.sign({ user_id: user_id }, process.env.Private_key);
+            const token = jwt.sign({ user_id: user_id, email: normalizedEmail }, process.env.Private_key);
             return res.header('x-auth-token', token).json({
                 message: "successfully registered",
                 token: token,

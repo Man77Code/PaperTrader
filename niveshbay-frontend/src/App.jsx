@@ -15,6 +15,11 @@ import BalanceStatsPage from './pages/BalanceStatsPage';
 import StakingPage from './pages/StakingPage';
 import MyStakingPage from './pages/MyStakingPage';
 import AdminStakingPage from './pages/AdminStakingPage';
+import AdminWithdrawalsPage from './pages/AdminWithdrawalsPage';
+import WalletOverviewPage from './pages/wallet/WalletOverviewPage';
+import CoinDepositPage from './pages/wallet/CoinDepositPage';
+import CoinWithdrawPage from './pages/wallet/CoinWithdrawPage';
+import WalletHistoryPage from './pages/wallet/WalletHistoryPage';
 
 function AuthGuard({ children }) {
   const { token, loading } = useAuth();
@@ -44,6 +49,11 @@ function AppRoutes() {
       <Route path="/staking" element={<AuthGuard><StakingPage /></AuthGuard>} />
       <Route path="/my-staking" element={<AuthGuard><MyStakingPage /></AuthGuard>} />
       <Route path="/admin/staking" element={<AuthGuard><AdminStakingPage /></AuthGuard>} />
+      <Route path="/admin/withdrawals" element={<AuthGuard><AdminWithdrawalsPage /></AuthGuard>} />
+      <Route path="/wallet" element={<AuthGuard><WalletOverviewPage /></AuthGuard>} />
+      <Route path="/wallet/deposit/:symbol" element={<AuthGuard><CoinDepositPage /></AuthGuard>} />
+      <Route path="/wallet/withdraw/:symbol" element={<AuthGuard><CoinWithdrawPage /></AuthGuard>} />
+      <Route path="/wallet/history" element={<AuthGuard><WalletHistoryPage /></AuthGuard>} />
       <Route path="*" element={<Navigate to="/trade/SOL-INR" replace />} />
     </Routes>
   );

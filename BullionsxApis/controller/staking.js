@@ -1,38 +1,7 @@
 const connect = require('../config/Mysqlcon');
 const asyncMiddleware = require('../middleware/async');
 const Joi = require('joi');
-
-async function getBalance(conn, userId, currencySymbol) {
-    const [rows] = await conn.query(
-        'SELECT id, balance FROM dbt_balance WHERE user_id = ? AND currency_symbol = ?',
-        [userId, currencySymbol]
-    );
-    return rows[0] || { id: null, balance: 0 };
-}
-
-async function adjustBalance(conn, userId, currencySymbol, delta) {
-    const existing = await getBalance(conn, userId, currencySymbol);
-    if (existing.id) {
-        await conn.query(
-            'UPDATE dbt_balance SET balance = GREATEST(balance + ?, 0) WHERE user_id = ? AND currency_symbol = ?',
-            [delta, userId, currencySymbol]
-        );
-    } else {
-        await conn.query(
-            'INSERT INTO dbt_balance (user_id, currency_symbol, balance) VALUES (?, ?, ?)',
-            [userId, currencySymbol, Math.max(0, delta)]
-        );
-    }
-}
-
-async function logBalanceChange(conn, { userId, currencySymbol, transactionType, amount, fees, ip }) {
-    const bal = await getBalance(conn, userId, currencySymbol);
-    if (!bal.id) return;
-    await conn.query(
-        'INSERT INTO dbt_balance_log (balance_id, user_id, currency_symbol, transaction_type, transaction_amount, transaction_fees, ip, date) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())',
-        [bal.id, userId, currencySymbol, transactionType, amount, fees || 0, ip || '0.0.0.0']
-    );
-}
+const { ensureBalanceRow, InsufficientBalanceError } = require('../services/balanceService');
 
 // ---------- PUBLIC ----------
 
@@ -104,22 +73,21 @@ exports.subscribe = async (req, res) => {
             });
         }
 
-        const userBal = await getBalance(conn, userId, 'INR');
-        if (parseFloat(userBal.balance || 0) < amount) {
+        const stakingRow = await ensureBalanceRow(conn, userId, 'INR');
+        const spotBal = parseFloat(stakingRow.balance || 0);
+        if (spotBal < amount) {
             await conn.rollback();
             conn.release();
-            return res.status(400).json({ status: 2, message: 'Insufficient INR balance.' });
+            return res.status(400).json({ status: 0, message: `Insufficient spot balance: ${spotBal} INR.` });
         }
-
-        await adjustBalance(conn, userId, 'INR', -amount);
-        await logBalanceChange(conn, {
-            userId,
-            currencySymbol: 'INR',
-            transactionType: 'STAKING_SUBSCRIBE',
-            amount,
-            fees: 0,
-            ip: req.ip
-        });
+        await conn.query(
+            'UPDATE dbt_balance SET balance = balance - ?, sharewallet = sharewallet + ? WHERE id = ?',
+            [amount, amount, stakingRow.id]
+        );
+        await conn.query(
+            'INSERT INTO dbt_balance_log (balance_id, user_id, currency_symbol, transaction_type, transaction_amount, transaction_fees, ip, date) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())',
+            [stakingRow.id, userId, 'INR', 'STAKING_SUBSCRIBE', amount, 0, req.ip || '0.0.0.0']
+        );
 
         const [insertResult] = await conn.query(
             `INSERT INTO dbt_user_staking
@@ -141,6 +109,9 @@ exports.subscribe = async (req, res) => {
         });
     } catch (err) {
         if (conn) { await conn.rollback(); conn.release(); }
+        if (err instanceof InsufficientBalanceError) {
+            return res.status(400).json({ status: 2, message: err.message });
+        }
         console.error('staking subscribe error:', err);
         res.status(500).json({ status: 0, message: 'Internal server error.' });
     }
@@ -174,15 +145,15 @@ exports.unsubscribe = async (req, res) => {
 
         const refundAmount = parseFloat(stake.stake_amount);
 
-        await adjustBalance(conn, userId, 'INR', +refundAmount);
-        await logBalanceChange(conn, {
-            userId,
-            currencySymbol: 'INR',
-            transactionType: 'STAKING_UNSTAKE',
-            amount: refundAmount,
-            fees: 0,
-            ip: req.ip
-        });
+        const unstakeRow = await ensureBalanceRow(conn, userId, 'INR');
+        await conn.query(
+            'UPDATE dbt_balance SET sharewallet = sharewallet - ?, balance = balance + ? WHERE id = ?',
+            [refundAmount, refundAmount, unstakeRow.id]
+        );
+        await conn.query(
+            'INSERT INTO dbt_balance_log (balance_id, user_id, currency_symbol, transaction_type, transaction_amount, transaction_fees, ip, date) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())',
+            [unstakeRow.id, userId, 'INR', 'STAKING_UNSTAKE', refundAmount, 0, req.ip || '0.0.0.0']
+        );
 
         await conn.query(
             'UPDATE dbt_user_staking SET status = "UNSTAKED", claimed_at = NOW() WHERE id = ?',
@@ -198,6 +169,9 @@ exports.unsubscribe = async (req, res) => {
         res.json({ status: 1, message: 'Stake has been unstaked early. Principal refunded.' });
     } catch (err) {
         if (conn) { await conn.rollback(); conn.release(); }
+        if (err instanceof InsufficientBalanceError) {
+            return res.status(400).json({ status: 0, message: err.message });
+        }
         console.error('staking unsubscribe error:', err);
         res.status(500).json({ status: 0, message: 'Internal server error.' });
     }
@@ -233,15 +207,15 @@ exports.claim = async (req, res) => {
         const reward = parseFloat(stake.reward_amount || 0);
         const totalCredit = principal + reward;
 
-        await adjustBalance(conn, userId, 'INR', +totalCredit);
-        await logBalanceChange(conn, {
-            userId,
-            currencySymbol: 'INR',
-            transactionType: 'STAKING_MATURITY',
-            amount: totalCredit,
-            fees: 0,
-            ip: req.ip
-        });
+        const claimRow = await ensureBalanceRow(conn, userId, 'INR');
+        await conn.query(
+            'UPDATE dbt_balance SET sharewallet = sharewallet - ?, balance = balance + ? WHERE id = ?',
+            [totalCredit, totalCredit, claimRow.id]
+        );
+        await conn.query(
+            'INSERT INTO dbt_balance_log (balance_id, user_id, currency_symbol, transaction_type, transaction_amount, transaction_fees, ip, date) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())',
+            [claimRow.id, userId, 'INR', 'STAKING_PAYOUT', totalCredit, 0, req.ip || '0.0.0.0']
+        );
 
         await conn.query(
             'UPDATE dbt_user_staking SET status = "CLAIMED", claimed_at = NOW() WHERE id = ?',
@@ -257,6 +231,9 @@ exports.claim = async (req, res) => {
         res.json({ status: 1, message: 'Staking rewards claimed successfully.', principal, reward, total: totalCredit });
     } catch (err) {
         if (conn) { await conn.rollback(); conn.release(); }
+        if (err instanceof InsufficientBalanceError) {
+            return res.status(400).json({ status: 0, message: err.message });
+        }
         console.error('staking claim error:', err);
         res.status(500).json({ status: 0, message: 'Internal server error.' });
     }

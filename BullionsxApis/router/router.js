@@ -212,4 +212,57 @@ router
 
 router.use('/api/v1/staking', stakingRouter);
 
+const wallet = require('../controller/wallet');
+const adminWithdraw = require('../controller/adminWithdraw');
+const adminAuth = require('../middleware/adminAuth');
+
+router
+  .route('/api/v1/wallet/overview')
+  .get(auth, wallet.getOverview);
+
+router
+  .route('/api/v1/wallet/coin/:symbol')
+  .get(auth, wallet.getCoinDetail);
+
+router
+  .route('/api/v1/wallet/deposit-address')
+  .get(auth, wallet.getDepositAddress);
+
+router
+  .route('/api/v1/wallet/deposits')
+  .get(auth, wallet.getDeposits);
+
+router
+  .route('/api/v1/wallet/withdraw/initiate')
+  .post(auth, wallet.initiateWithdraw);
+
+router
+  .route('/api/v1/wallet/withdraw/confirm')
+  .post(auth, wallet.confirmWithdraw);
+
+router
+  .route('/api/v1/wallet/withdrawals')
+  .get(auth, wallet.getWithdrawals);
+
+router
+  .route('/api/v1/wallet/transfer')
+  .post(auth, wallet.transfer);
+
+router
+  .route('/api/v1/wallet/history')
+  .get(auth, wallet.getHistory);
+
+// Admin withdrawal management
+router
+  .route('/api/v1/admin/withdrawals')
+  .get(auth, adminAuth, adminWithdraw.getWithdrawals);
+
+router
+  .route('/api/v1/admin/withdrawal/:id/approve')
+  .patch(auth, adminAuth, adminWithdraw.approveWithdrawal);
+
+router
+  .route('/api/v1/admin/withdrawal/:id/reject')
+  .patch(auth, adminAuth, adminWithdraw.rejectWithdrawal);
+
 module.exports = router;

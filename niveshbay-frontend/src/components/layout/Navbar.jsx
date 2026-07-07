@@ -64,6 +64,17 @@ export default function Navbar({ balance, portfolioValue, realizedPnl }) {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Wallet Button */}
+          <Link
+            to="/wallet"
+            className="flex items-center text-xs font-semibold px-3 py-1.5 border border-[#ffd333] text-[#ffd333] rounded bg-[#1e2330] hover:bg-[#ffd333]/15 transition gap-1"
+          >
+            <svg className="w-3.5 h-3.5 text-[#ffd333]" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+            </svg>
+            Wallet
+          </Link>
+
           {/* Staking Button */}
           <Link
             to="/staking"
