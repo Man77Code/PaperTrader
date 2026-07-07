@@ -35,6 +35,88 @@ function getEmailTemplate(otp, purpose) {
   return { subject, body };
 }
 
+function sendViaBrevo(email, otp, purpose) {
+  const { subject, body } = getEmailTemplate(otp, purpose);
+
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify({
+      sender: { email: process.env.EMAIL_FROM || 'sg25042023@gmail.com', name: 'NiveshBay' },
+      to: [{ email }],
+      subject,
+      textContent: body,
+    });
+
+    const req = https.request({
+      hostname: 'api.brevo.com',
+      path: '/v3/smtp/email',
+      method: 'POST',
+      headers: {
+        'api-key': process.env.BREVO_API_KEY,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data),
+      },
+    }, (res) => {
+      let chunk = '';
+      res.on('data', (c) => chunk += c);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            resolve(JSON.parse(chunk));
+          } catch (_) {
+            resolve(chunk);
+          }
+        } else {
+          reject(new Error(`Brevo API ${res.statusCode}: ${chunk}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(data);
+    req.end();
+  });
+}
+
+function sendViaSendGrid(email, otp, purpose) {
+  const { subject, body } = getEmailTemplate(otp, purpose);
+
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify({
+      personalizations: [{ to: [{ email }] }],
+      from: { email: process.env.EMAIL_FROM || 'sg25042023@gmail.com', name: 'NiveshBay' },
+      subject,
+      content: [{ type: 'text/plain', value: body }],
+    });
+
+    const req = https.request({
+      hostname: 'api.sendgrid.com',
+      path: '/v3/mail/send',
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data),
+      },
+    }, (res) => {
+      let chunk = '';
+      res.on('data', (c) => chunk += c);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            resolve(chunk ? JSON.parse(chunk) : { success: true });
+          } catch (_) {
+            resolve(chunk);
+          }
+        } else {
+          reject(new Error(`SendGrid API ${res.statusCode}: ${chunk}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(data);
+    req.end();
+  });
+}
+
 function sendViaResend(email, otp, purpose) {
   const { subject, body } = getEmailTemplate(otp, purpose);
 
@@ -118,6 +200,12 @@ function sendViaMailtrap(email, otp, purpose) {
 }
 
 async function sendOtpEmail(email, otp, purpose) {
+  if (process.env.BREVO_API_KEY) {
+    return sendViaBrevo(email, otp, purpose);
+  }
+  if (process.env.SENDGRID_API_KEY) {
+    return sendViaSendGrid(email, otp, purpose);
+  }
   if (process.env.RESEND_API_KEY) {
     return sendViaResend(email, otp, purpose);
   }
@@ -134,7 +222,7 @@ async function sendOtpEmail(email, otp, purpose) {
     });
     return;
   }
-  throw new Error('No email method configured. Set RESEND_API_KEY, MAILTRAP_API_TOKEN or EMAIL_HOST');
+  throw new Error('No email method configured. Set BREVO_API_KEY, SENDGRID_API_KEY, RESEND_API_KEY, MAILTRAP_API_TOKEN or EMAIL_HOST');
 }
 
 module.exports = { sendOtpEmail };
