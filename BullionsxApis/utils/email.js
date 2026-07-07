@@ -1,19 +1,16 @@
 const nodemailer = require('nodemailer');
-const sgMail = require('@sendgrid/mail');
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
 
-const useSendGrid = !!process.env.SENDGRID_API_KEY;
+const emailPort = parseInt(process.env.EMAIL_PORT || '587');
 
-if (useSendGrid) {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-}
-
-const transporter = !useSendGrid && nodemailer.createTransport({
+const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.EMAIL_PORT || '587'),
-  secure: false,
-  requireTLS: true,
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
+  port: emailPort,
+  secure: emailPort === 465,
+  requireTLS: emailPort !== 465,
+  connectionTimeout: 15000,
+  greetingTimeout: 15000,
   tls: {
     rejectUnauthorized: false,
   },
@@ -42,23 +39,14 @@ Do not share this OTP with anyone.
 Team NiveshBay`;
 
   const fromName = 'NiveshBay';
-  const fromEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER;
+  const fromEmail = process.env.EMAIL_USER;
 
-  if (useSendGrid) {
-    await sgMail.send({
-      from: { email: fromEmail, name: fromName },
-      to: email,
-      subject,
-      text: body,
-    });
-  } else {
-    await transporter.sendMail({
-      from: `"${fromName}" <${fromEmail}>`,
-      to: email,
-      subject,
-      text: body,
-    });
-  }
+  await transporter.sendMail({
+    from: `"${fromName}" <${fromEmail}>`,
+    to: email,
+    subject,
+    text: body,
+  });
 }
 
 module.exports = { sendOtpEmail };
