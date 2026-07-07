@@ -46,7 +46,7 @@ async function logBalanceChange(conn, { userId, currencySymbol, transactionType,
 
 async function findBestCounterOrder(conn, marketSymbol, side, limitPrice, orderType) {
   if (side === 'BUY') {
-    let query = 'SELECT id, bid_type, bid_price, bid_qty, bid_qty_available, total_amount, amount_available, currency_symbol, market_symbol, user_id, fees_amount, status FROM dbt_biding WHERE market_symbol = ? AND status = 2 AND bid_type = "SELL"';
+    let query = "SELECT id, bid_type, bid_price, bid_qty, bid_qty_available, total_amount, amount_available, currency_symbol, market_symbol, user_id, fees_amount, status FROM dbt_biding WHERE market_symbol = ? AND status = 2 AND bid_type = 'SELL'";
     const params = [marketSymbol];
     if (orderType === 'LIMIT') {
       query += ' AND bid_price <= ?';
@@ -56,7 +56,7 @@ async function findBestCounterOrder(conn, marketSymbol, side, limitPrice, orderT
     const [rows] = await conn.query(query, params);
     return rows[0] || null;
   }
-  let query = 'SELECT id, bid_type, bid_price, bid_qty, bid_qty_available, total_amount, amount_available, currency_symbol, market_symbol, user_id, fees_amount, status FROM dbt_biding WHERE market_symbol = ? AND status = 2 AND bid_type = "BUY"';
+  let query = "SELECT id, bid_type, bid_price, bid_qty, bid_qty_available, total_amount, amount_available, currency_symbol, market_symbol, user_id, fees_amount, status FROM dbt_biding WHERE market_symbol = ? AND status = 2 AND bid_type = 'BUY'";
   const params = [marketSymbol];
   if (orderType === 'LIMIT') {
     query += ' AND bid_price >= ?';
@@ -82,7 +82,7 @@ async function updateCoinHistory(conn, { coinSymbol, marketSymbol, executedPrice
     [marketSymbol]
   );
   const [h1VolRows] = await conn.query(
-    'SELECT COALESCE(SUM(complete_qty), 0) AS volume FROM dbt_biding_log WHERE bid_type = "BUY" AND market_symbol = ? AND success_time >= DATE_SUB(NOW(), INTERVAL 1 HOUR)',
+    "SELECT COALESCE(SUM(complete_qty), 0) AS volume FROM dbt_biding_log WHERE bid_type = 'BUY' AND market_symbol = ? AND success_time >= DATE_SUB(NOW(), INTERVAL 1 HOUR)",
     [marketSymbol]
   );
 
@@ -91,7 +91,7 @@ async function updateCoinHistory(conn, { coinSymbol, marketSymbol, executedPrice
     [marketSymbol]
   );
   const [h24VolRows] = await conn.query(
-    'SELECT COALESCE(SUM(complete_qty), 0) AS volume FROM dbt_biding_log WHERE bid_type = "BUY" AND market_symbol = ? AND success_time >= DATE_SUB(NOW(), INTERVAL 24 HOUR)',
+    "SELECT COALESCE(SUM(complete_qty), 0) AS volume FROM dbt_biding_log WHERE bid_type = 'BUY' AND market_symbol = ? AND success_time >= DATE_SUB(NOW(), INTERVAL 24 HOUR)",
     [marketSymbol]
   );
 
@@ -407,7 +407,7 @@ exports.placeBuyOrder = async (req, res) => {
     let totalAmount;
     if (orderType === 'MARKET') {
       const [allSells] = await conn.query(
-        'SELECT bid_price, bid_qty_available FROM dbt_biding WHERE market_symbol = ? AND bid_type = "SELL" AND status = 2 ORDER BY bid_price ASC',
+        "SELECT bid_price, bid_qty_available FROM dbt_biding WHERE market_symbol = ? AND bid_type = 'SELL' AND status = 2 ORDER BY bid_price ASC",
         [market]
       );
       if (!allSells.length) {
@@ -569,7 +569,7 @@ exports.placeSellOrder = async (req, res) => {
     let totalAmount;
     if (orderType === 'MARKET') {
       const [allBuys] = await conn.query(
-        'SELECT bid_price, bid_qty_available FROM dbt_biding WHERE market_symbol = ? AND bid_type = "BUY" AND status = 2 ORDER BY bid_price DESC',
+        "SELECT bid_price, bid_qty_available FROM dbt_biding WHERE market_symbol = ? AND bid_type = 'BUY' AND status = 2 ORDER BY bid_price DESC",
         [market]
       );
       if (!allBuys.length) {

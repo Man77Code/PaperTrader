@@ -9,7 +9,7 @@ exports.getBalanceStats = asyncMiddleware(async (req, res) => {
 
     // 1. INR balance
     const [balRows] = await conn.query(
-        'SELECT balance FROM dbt_balance WHERE user_id = ? AND currency_symbol = "INR"',
+        "SELECT balance FROM dbt_balance WHERE user_id = ? AND currency_symbol = 'INR'",
         [userId]
     );
     const inrBalance = parseFloat(balRows[0]?.balance || 0);

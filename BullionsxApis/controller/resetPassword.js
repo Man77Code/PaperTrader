@@ -31,7 +31,7 @@ exports.resetPassword = async (req, res) => {
 
     // Check if OTP was verified for reset-password
     const [otps] = await conn.query(
-      'SELECT id FROM dbt_otp WHERE email = ? AND purpose = "reset-password" AND verified = 1 LIMIT 1',
+      "SELECT id FROM dbt_otp WHERE email = ? AND purpose = 'reset-password' AND verified = 1 LIMIT 1",
       [normalizedEmail]
     );
 
@@ -53,7 +53,7 @@ exports.resetPassword = async (req, res) => {
     await conn.query('UPDATE dbt_user SET password = ? WHERE email = ?', [hashedPassword, normalizedEmail]);
 
     // Clean verified OTP record
-    await conn.query('DELETE FROM dbt_otp WHERE email = ? AND purpose = "reset-password"', [normalizedEmail]);
+    await conn.query("DELETE FROM dbt_otp WHERE email = ? AND purpose = 'reset-password'", [normalizedEmail]);
 
     return res.status(200).json({ success: true, message: 'Password reset successful.' });
   } catch (err) {

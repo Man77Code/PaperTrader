@@ -43,7 +43,7 @@ module.exports = async function createUser(req, res, next) {
         const normalizedEmail = req.body.email.toLowerCase().trim();
 
         const [otps] = await conn.query(
-            'SELECT id FROM dbt_otp WHERE email = ? AND purpose = "register" AND verified = 1 LIMIT 1',
+            "SELECT id FROM dbt_otp WHERE email = ? AND purpose = 'register' AND verified = 1 LIMIT 1",
             [normalizedEmail]
         );
         if (otps.length === 0) {
@@ -98,21 +98,21 @@ module.exports = async function createUser(req, res, next) {
         );
 
         if (result.affectedRows > 0) {
-            await conn.query('DELETE FROM dbt_otp WHERE email = ? AND purpose = "register"', [normalizedEmail]);
+            await conn.query("DELETE FROM dbt_otp WHERE email = ? AND purpose = 'register'", [normalizedEmail]);
 
             await conn.query(
-                'INSERT INTO dbt_balance (user_id, currency_symbol, balance) VALUES (?, "INR", 200000.00000000)',
+                "INSERT INTO dbt_balance (user_id, currency_symbol, balance) VALUES (?, 'INR', 200000.00000000)",
                 [user_id]
             );
 
             const [balanceRows] = await conn.query(
-                'SELECT id FROM dbt_balance WHERE user_id = ? AND currency_symbol = "INR"',
+                "SELECT id FROM dbt_balance WHERE user_id = ? AND currency_symbol = 'INR'",
                 [user_id]
             );
             const balanceId = balanceRows[0]?.id;
             if (balanceId) {
                 await conn.query(
-                    'INSERT INTO dbt_balance_log (balance_id, user_id, currency_symbol, transaction_type, transaction_amount, transaction_fees, ip, date) VALUES (?, ?, "INR", "SIGNUP_BONUS", 200000, 0, ?, NOW())',
+                    "INSERT INTO dbt_balance_log (balance_id, user_id, currency_symbol, transaction_type, transaction_amount, transaction_fees, ip, date) VALUES (?, ?, 'INR', 'SIGNUP_BONUS', 200000, 0, ?, NOW())",
                     [balanceId, user_id, req.ip || '0.0.0.0']
                 );
             }

@@ -179,7 +179,7 @@ exports.verifyOtp = async (req, res) => {
         return res.status(404).json({ success: false, message: 'User not found.' });
       }
       const user = users[0];
-      await conn.query('DELETE FROM dbt_otp WHERE email = ? AND purpose = "login"', [normalizedEmail]);
+      await conn.query("DELETE FROM dbt_otp WHERE email = ? AND purpose = 'login'", [normalizedEmail]);
       const token = jwt.sign({ user_id: user.user_id, email: user.email }, process.env.Private_key);
       return res.header('x-auth-token', token).json({
         success: true,

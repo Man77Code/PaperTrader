@@ -133,7 +133,7 @@ exports.unsubscribe = async (req, res) => {
         await conn.beginTransaction();
 
         const [stakes] = await conn.query(
-            'SELECT * FROM dbt_user_staking WHERE id = ? AND user_id = ? AND status = "ACTIVE"',
+            "SELECT * FROM dbt_user_staking WHERE id = ? AND user_id = ? AND status = 'ACTIVE'",
             [stake_id, userId]
         );
         if (!stakes.length) {
@@ -156,7 +156,7 @@ exports.unsubscribe = async (req, res) => {
         );
 
         await conn.query(
-            'UPDATE dbt_user_staking SET status = "UNSTAKED", claimed_at = NOW() WHERE id = ?',
+            "UPDATE dbt_user_staking SET status = 'UNSTAKED', claimed_at = NOW() WHERE id = ?",
             [stake_id]
         );
 
@@ -193,7 +193,7 @@ exports.claim = async (req, res) => {
         await conn.beginTransaction();
 
         const [stakes] = await conn.query(
-            'SELECT * FROM dbt_user_staking WHERE id = ? AND user_id = ? AND status = "MATURED"',
+            "SELECT * FROM dbt_user_staking WHERE id = ? AND user_id = ? AND status = 'MATURED'",
             [stake_id, userId]
         );
         if (!stakes.length) {
@@ -218,7 +218,7 @@ exports.claim = async (req, res) => {
         );
 
         await conn.query(
-            'UPDATE dbt_user_staking SET status = "CLAIMED", claimed_at = NOW() WHERE id = ?',
+            "UPDATE dbt_user_staking SET status = 'CLAIMED', claimed_at = NOW() WHERE id = ?",
             [stake_id]
         );
 
@@ -329,7 +329,7 @@ exports.adminDeletePlan = async (req, res) => {
         await conn.beginTransaction();
 
         const [activeStakes] = await conn.query(
-            'SELECT id FROM dbt_user_staking WHERE plan_id = ? AND status = "ACTIVE" LIMIT 1',
+            "SELECT id FROM dbt_user_staking WHERE plan_id = ? AND status = 'ACTIVE' LIMIT 1",
             [id]
         );
         if (activeStakes.length) {

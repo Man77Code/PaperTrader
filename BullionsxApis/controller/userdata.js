@@ -103,7 +103,7 @@ exports.getMe = asyncMiddleware(async (req, res) => {
 
 exports.getBalance = asyncMiddleware(async (req, res) => {
         const conn = await connect();
-        const data = await conn.query('SELECT * FROM dbt_balance WHERE user_id = ? AND currency_symbol = "INR"', [req.query.user_id]);
+        const data = await conn.query("SELECT * FROM dbt_balance WHERE user_id = ? AND currency_symbol = 'INR'", [req.query.user_id]);
         res.status(200).json(data[0][0] || { user_id: req.query.user_id, currency_symbol: 'INR', balance: 0 });
 });
 

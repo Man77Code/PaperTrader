@@ -28,9 +28,9 @@ exports.loginUser = async (req, res, next) => {
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const hashedOtp = await bcrypt.hash(otp, 10);
 
-        await conn.query('DELETE FROM dbt_otp WHERE email = ? AND purpose = "login"', [normalizedEmail]);
+        await conn.query("DELETE FROM dbt_otp WHERE email = ? AND purpose = 'login'", [normalizedEmail]);
         await conn.query(
-            'INSERT INTO dbt_otp (email, otp, purpose, created_at, verified, attempts, blocked_until) VALUES (?, ?, "login", NOW(), 0, 0, NULL)',
+            "INSERT INTO dbt_otp (email, otp, purpose, created_at, verified, attempts, blocked_until) VALUES (?, ?, 'login', NOW(), 0, 0, NULL)",
             [normalizedEmail, hashedOtp]
         );
 

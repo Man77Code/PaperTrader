@@ -35,6 +35,51 @@ function getEmailTemplate(otp, purpose) {
   return { subject, body };
 }
 
+function sendViaMailjet(email, otp, purpose) {
+  const { subject, body } = getEmailTemplate(otp, purpose);
+
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify({
+      Messages: [{
+        From: { Email: process.env.EMAIL_FROM || 'sg25042023@gmail.com', Name: 'NiveshBay' },
+        To: [{ Email: email }],
+        Subject: subject,
+        TextPart: body,
+      }]
+    });
+
+    const auth = Buffer.from(`${process.env.MAILJET_API_KEY}:${process.env.MAILJET_SECRET_KEY}`).toString('base64');
+
+    const req = https.request({
+      hostname: 'api.mailjet.com',
+      path: '/v3.1/send',
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data),
+      },
+    }, (res) => {
+      let chunk = '';
+      res.on('data', (c) => chunk += c);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            resolve(JSON.parse(chunk));
+          } catch (_) {
+            resolve(chunk);
+          }
+        } else {
+          reject(new Error(`Mailjet API ${res.statusCode}: ${chunk}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(data);
+    req.end();
+  });
+}
+
 function sendViaBrevo(email, otp, purpose) {
   const { subject, body } = getEmailTemplate(otp, purpose);
 
@@ -200,6 +245,9 @@ function sendViaMailtrap(email, otp, purpose) {
 }
 
 async function sendOtpEmail(email, otp, purpose) {
+  if (process.env.MAILJET_API_KEY) {
+    return sendViaMailjet(email, otp, purpose);
+  }
   if (process.env.BREVO_API_KEY) {
     return sendViaBrevo(email, otp, purpose);
   }
@@ -222,7 +270,7 @@ async function sendOtpEmail(email, otp, purpose) {
     });
     return;
   }
-  throw new Error('No email method configured. Set BREVO_API_KEY, SENDGRID_API_KEY, RESEND_API_KEY, MAILTRAP_API_TOKEN or EMAIL_HOST');
+  throw new Error('No email method configured. Set MAILJET_API_KEY, BREVO_API_KEY, SENDGRID_API_KEY, RESEND_API_KEY, MAILTRAP_API_TOKEN or EMAIL_HOST');
 }
 
 module.exports = { sendOtpEmail };
