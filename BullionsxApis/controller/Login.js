@@ -2,7 +2,11 @@ const { authValidate } = require('../Validate/validate');
 const connect = require('../config/Mysqlcon');
 const { sendOtpEmail } = require('../utils/email');
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', 'config', '.env') });
+const fs = require('fs');
+const envPath = path.join(__dirname, '..', 'config', '.env');
+if (fs.existsSync(envPath)) {
+  require('dotenv').config({ path: envPath });
+}
 const bcrypt = require('bcrypt');
 
 exports.loginUser = async (req, res, next) => {

@@ -4,7 +4,11 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', 'config', '.env') });
+const fs = require('fs');
+const envPath = path.join(__dirname, '..', 'config', '.env');
+if (fs.existsSync(envPath)) {
+  require('dotenv').config({ path: envPath });
+}
 
 async function generateUniqueUserId(conn) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
