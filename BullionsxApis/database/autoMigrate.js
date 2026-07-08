@@ -74,8 +74,11 @@ async function ensureStakingSchema() {
             console.log('[autoMigrate] Fixed dbt_balance wallet null defaults');
         } catch (_) {}
 
+        try {
+            await conn.query('DROP TABLE IF EXISTS dbt_coin_network');
+        } catch (_) {}
         await conn.query(`
-            CREATE TABLE IF NOT EXISTS dbt_coin_network (
+            CREATE TABLE dbt_coin_network (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 coin_symbol VARCHAR(50) NOT NULL,
                 network_name VARCHAR(50) NOT NULL,
@@ -89,7 +92,7 @@ async function ensureStakingSchema() {
                 status TINYINT(1) DEFAULT 1
             )
         `);
-        console.log('[autoMigrate] Ensured dbt_coin_network table');
+        console.log('[autoMigrate] Recreated dbt_coin_network table');
 
         try {
             await conn.query("ALTER TABLE dbt_cryptocoin ADD COLUMN coin_position INT DEFAULT 0");
