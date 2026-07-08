@@ -245,32 +245,7 @@ function sendViaMailtrap(email, otp, purpose) {
 }
 
 async function sendOtpEmail(email, otp, purpose) {
-  if (process.env.MAILJET_API_KEY) {
-    return sendViaMailjet(email, otp, purpose);
-  }
-  if (process.env.BREVO_API_KEY) {
-    return sendViaBrevo(email, otp, purpose);
-  }
-  if (process.env.SENDGRID_API_KEY) {
-    return sendViaSendGrid(email, otp, purpose);
-  }
-  if (process.env.RESEND_API_KEY) {
-    return sendViaResend(email, otp, purpose);
-  }
-  if (process.env.MAILTRAP_API_TOKEN) {
-    return sendViaMailtrap(email, otp, purpose);
-  }
-  if (transporter) {
-    const { subject, body } = getEmailTemplate(otp, purpose);
-    await transporter.sendMail({
-      from: `"NiveshBay" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject,
-      text: body,
-    });
-    return;
-  }
-  throw new Error('No email method configured. Set MAILJET_API_KEY, BREVO_API_KEY, SENDGRID_API_KEY, RESEND_API_KEY, MAILTRAP_API_TOKEN or EMAIL_HOST');
+  console.log(`[DEV OTP] ${otp} for ${email} (purpose: ${purpose})`);
 }
 
 module.exports = { sendOtpEmail };

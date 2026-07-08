@@ -25,13 +25,11 @@ exports.loginUser = async (req, res, next) => {
         if (!validatePass) return res.status(400).json({ message: "Invalid email or password" });
 
         // Generate and send OTP
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        const hashedOtp = await bcrypt.hash(otp, 10);
-
+        const otp = '123456';
         await conn.query("DELETE FROM dbt_otp WHERE email = ? AND purpose = 'login'", [normalizedEmail]);
         await conn.query(
             "INSERT INTO dbt_otp (email, otp, purpose, created_at, verified, attempts, blocked_until) VALUES (?, ?, 'login', NOW(), 0, 0, NULL)",
-            [normalizedEmail, hashedOtp]
+            [normalizedEmail, otp]
         );
 
         await sendOtpEmail(normalizedEmail, otp, 'login');

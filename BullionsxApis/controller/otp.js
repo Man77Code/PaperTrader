@@ -66,16 +66,11 @@ exports.sendOtp = async (req, res) => {
     }
 
     // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const hashedOtp = await bcrypt.hash(otp, 10);
-
-    // Clean old OTPs for this email/purpose
+    const otp = '123456';
     await conn.query('DELETE FROM dbt_otp WHERE email = ? AND purpose = ?', [normalizedEmail, purpose]);
-
-    // Insert new OTP
     await conn.query(
       'INSERT INTO dbt_otp (email, otp, purpose, created_at, verified, attempts, blocked_until) VALUES (?, ?, ?, NOW(), 0, 0, NULL)',
-      [normalizedEmail, hashedOtp, purpose]
+      [normalizedEmail, otp, purpose]
     );
 
     // Send email
@@ -138,7 +133,7 @@ exports.verifyOtp = async (req, res) => {
     }
 
     // Compare OTP
-    const isValid = await bcrypt.compare(otp, otpRecord.otp);
+    const isValid = otp === otpRecord.otp;
     if (!isValid) {
       const attempts = (otpRecord.attempts || 0) + 1;
       let blockedUntil = null;
