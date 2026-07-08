@@ -277,12 +277,18 @@ router
       const [cols] = await conn.query("SHOW COLUMNS FROM dbt_coin_network");
       const [cryptoCols] = await conn.query("SHOW COLUMNS FROM dbt_cryptocoin");
       const [withdrawCols] = await conn.query("SHOW COLUMNS FROM tbl_withdraw");
+      const [pendingWithdrawals] = await conn.query("SELECT COUNT(*) AS cnt FROM tbl_withdraw WHERE status = 'pending'");
+      const [totalWithdrawals] = await conn.query('SELECT COUNT(*) AS cnt FROM tbl_withdraw');
+      const [adminUsers] = await conn.query("SELECT user_id, email, is_admin FROM dbt_user WHERE is_admin = 1");
       conn.release();
       res.json({
         dbt_cryptocoin_columns: cryptoCols.map(c => c.Field),
         tbl_withdraw_columns: withdrawCols.map(c => c.Field),
         dbt_coin_network_columns: cols.map(c => c.Field),
-        dbt_coin_network_data: networks
+        dbt_coin_network_data: networks,
+        pending_withdrawals: pendingWithdrawals[0].cnt,
+        total_withdrawals: totalWithdrawals[0].cnt,
+        admin_users: adminUsers
       });
     } catch (err) {
       res.status(500).json({ error: err.message });
