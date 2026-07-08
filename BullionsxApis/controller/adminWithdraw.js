@@ -9,7 +9,7 @@ exports.getWithdrawals = async (req, res) => {
     conn = await pool.getConnection();
     const { status: filterStatus, limit = 50, offset = 0 } = req.query;
 
-    let query = 'SELECT w.*, u.first_name, u.last_name, u.email FROM tbl_withdraw w LEFT JOIN dbt_user u ON w.user_id = u.user_id';
+    let query = 'SELECT w.*, u.first_name, u.last_name, u.email FROM tbl_withdraw w LEFT JOIN dbt_user u ON w.user_id = u.user_id COLLATE utf8mb4_general_ci';
     const params = [];
     if (filterStatus) {
       query += ' WHERE w.status = ?'; params.push(filterStatus);

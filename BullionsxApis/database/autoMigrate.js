@@ -170,6 +170,10 @@ async function ensureStakingSchema() {
             await conn.query("ALTER TABLE tbl_withdraw MODIFY COLUMN status VARCHAR(20) DEFAULT 'pending'");
             console.log('[autoMigrate] Repaired tbl_withdraw.status type');
         } catch (_) {}
+        try {
+            await conn.query("ALTER TABLE tbl_withdraw MODIFY COLUMN user_id VARCHAR(100) NOT NULL COLLATE utf8mb4_general_ci");
+            console.log('[autoMigrate] Fixed tbl_withdraw.user_id collation');
+        } catch (_) {}
 
         conn.release();
         console.log('[autoMigrate] Schema checks complete.');

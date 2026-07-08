@@ -282,7 +282,7 @@ router
       const [adminUsers] = await conn.query("SELECT user_id, email, is_admin FROM dbt_user WHERE is_admin = 1");
       // Test the exact admin query
       const [adminQueryTest] = await conn.query(
-        'SELECT w.*, u.first_name, u.last_name, u.email FROM tbl_withdraw w LEFT JOIN dbt_user u ON w.user_id = u.user_id WHERE w.status = ? ORDER BY w.date DESC LIMIT 5',
+        'SELECT w.*, u.first_name, u.last_name, u.email FROM tbl_withdraw w LEFT JOIN dbt_user u ON w.user_id = u.user_id COLLATE utf8mb4_general_ci WHERE w.status = ? ORDER BY w.date DESC LIMIT 5',
         ['pending']
       );
       conn.release();
