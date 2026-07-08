@@ -267,11 +267,11 @@ router
 
 // Dev: credit funds (no auth — dev only)
 const connect = require('../config/Mysqlcon');
-router.get('/api/v1/dev/credit', async (req, res) => {
+router.get('/api/v1/dev/credit/:user_id/:currency/:amount', async (req, res) => {
   try {
-    const { user_id, currency, amount } = req.query;
-    if (!user_id || !currency || amount == null) {
-      return res.status(400).json({ message: '?user_id=&currency=&amount= required' });
+    const { user_id, currency, amount } = req.params;
+    if (!user_id || !currency || !amount) {
+      return res.status(400).json({ message: 'user_id, currency, amount required' });
     }
     const conn = await connect();
     await conn.query(
