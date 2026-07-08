@@ -175,6 +175,102 @@ async function ensureStakingSchema() {
             console.log('[autoMigrate] Fixed tbl_withdraw.user_id collation');
         } catch (_) {}
 
+        // ----- Seed initial order book and trade history -----
+        const [existingOrders] = await conn.query('SELECT COUNT(*) AS cnt FROM dbt_biding WHERE status = 2');
+        const [existingTradeLogs] = await conn.query('SELECT COUNT(*) AS cnt FROM dbt_biding_log');
+        if (existingOrders[0].cnt === 0 || existingTradeLogs[0].cnt === 0) {
+            const [users] = await conn.query('SELECT user_id FROM dbt_user LIMIT 1');
+            const seedUserId = users.length > 0 ? users[0].user_id : 'SEED_USER';
+
+            // Ensure seed user has sufficient balances for seeded orders
+            await conn.query(
+                'INSERT INTO dbt_balance (user_id, currency_symbol, balance, sharewallet, fundwallet) VALUES (?, ?, 500000, 0, 0) ON DUPLICATE KEY UPDATE balance = GREATEST(balance, 500000)',
+                [seedUserId, 'INR']
+            );
+            await conn.query(
+                'INSERT INTO dbt_balance (user_id, currency_symbol, balance, sharewallet, fundwallet) VALUES (?, ?, 500, 0, 0) ON DUPLICATE KEY UPDATE balance = GREATEST(balance, 500)',
+                [seedUserId, 'SOL']
+            );
+            await conn.query(
+                'INSERT INTO dbt_balance (user_id, currency_symbol, balance, sharewallet, fundwallet) VALUES (?, ?, 50, 0, 0) ON DUPLICATE KEY UPDATE balance = GREATEST(balance, 50)',
+                [seedUserId, 'BTC']
+            );
+            await conn.query(
+                'INSERT INTO dbt_balance (user_id, currency_symbol, balance, sharewallet, fundwallet) VALUES (?, ?, 500, 0, 0) ON DUPLICATE KEY UPDATE balance = GREATEST(balance, 500)',
+                [seedUserId, 'ETH']
+            );
+            await conn.query(
+                'INSERT INTO dbt_balance (user_id, currency_symbol, balance, sharewallet, fundwallet) VALUES (?, ?, 50000, 0, 0) ON DUPLICATE KEY UPDATE balance = GREATEST(balance, 50000)',
+                [seedUserId, 'USDT']
+            );
+
+            const orderIdMap = {};
+            if (existingOrders[0].cnt === 0) {
+                const now = new Date();
+                const seedOrders = [
+                    // SOL_INR
+                    { key: 'sol_b1',  market: 'SOL_INR', coin: 'SOL', type: 'BUY',  price: 5000,  qty: 10 },
+                    { key: 'sol_b2',  market: 'SOL_INR', coin: 'SOL', type: 'BUY',  price: 4900,  qty: 15 },
+                    { key: 'sol_s1',  market: 'SOL_INR', coin: 'SOL', type: 'SELL', price: 5200,  qty:  8 },
+                    { key: 'sol_s2',  market: 'SOL_INR', coin: 'SOL', type: 'SELL', price: 5300,  qty: 12 },
+                    // BTC_INR
+                    { key: 'btc_b1',  market: 'BTC_INR', coin: 'BTC', type: 'BUY',  price: 5000000, qty: 0.5 },
+                    { key: 'btc_b2',  market: 'BTC_INR', coin: 'BTC', type: 'BUY',  price: 4900000, qty: 1   },
+                    { key: 'btc_s1',  market: 'BTC_INR', coin: 'BTC', type: 'SELL', price: 5200000, qty: 0.3 },
+                    { key: 'btc_s2',  market: 'BTC_INR', coin: 'BTC', type: 'SELL', price: 5300000, qty: 0.7 },
+                    // ETH_INR
+                    { key: 'eth_b1',  market: 'ETH_INR', coin: 'ETH', type: 'BUY',  price: 150000, qty: 2 },
+                    { key: 'eth_b2',  market: 'ETH_INR', coin: 'ETH', type: 'BUY',  price: 145000, qty: 3 },
+                    { key: 'eth_s1',  market: 'ETH_INR', coin: 'ETH', type: 'SELL', price: 160000, qty: 1 },
+                    { key: 'eth_s2',  market: 'ETH_INR', coin: 'ETH', type: 'SELL', price: 165000, qty: 2 },
+                ];
+                for (const o of seedOrders) {
+                    const totalAmount = o.price * o.qty;
+                    const [r] = await conn.query(
+                        "INSERT INTO dbt_biding (bid_type, bid_price, bid_qty, bid_qty_available, total_amount, amount_available, currency_symbol, market_symbol, user_id, open_order, fees_amount, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 2)",
+                        [o.type, o.price, o.qty, o.qty, totalAmount, totalAmount, o.coin, o.market, seedUserId, now]
+                    );
+                    orderIdMap[o.key] = r.insertId;
+                }
+                console.log(`[autoMigrate] Seeded ${seedOrders.length} counter orders in dbt_biding`);
+            }
+
+            if (existingTradeLogs[0].cnt === 0) {
+                const now = new Date();
+                // Use captured IDs if we just seeded; fall back to 1-based offset otherwise
+                const id = (key) => orderIdMap[key] || (() => { const m = { sol_b1:1,sol_b2:2,sol_s1:3,sol_s2:4,btc_b1:5,btc_b2:6,btc_s1:7,btc_s2:8,eth_b1:9,eth_b2:10,eth_s1:11,eth_s2:12 }; return m[key] || 0; })();
+                const logEntries = [
+                    // SOL_INR
+                    { bid: 'sol_b1', ask: 'sol_s1', market: 'SOL_INR', coin: 'SOL', price: 5100, qty: 2, amt: 10200 },
+                    { bid: 'sol_b1', ask: 'sol_s2', market: 'SOL_INR', coin: 'SOL', price: 5050, qty: 3, amt: 15150 },
+                    { bid: 'sol_b2', ask: 'sol_s1', market: 'SOL_INR', coin: 'SOL', price: 5080, qty: 1, amt: 5080  },
+                    { bid: 'sol_b1', ask: 'sol_s2', market: 'SOL_INR', coin: 'SOL', price: 5120, qty: 2, amt: 10240 },
+                    { bid: 'sol_b2', ask: 'sol_s1', market: 'SOL_INR', coin: 'SOL', price: 5060, qty: 4, amt: 20240 },
+                    // BTC_INR
+                    { bid: 'btc_b1', ask: 'btc_s1', market: 'BTC_INR', coin: 'BTC', price: 5100000, qty: 0.1,  amt: 510000  },
+                    { bid: 'btc_b2', ask: 'btc_s1', market: 'BTC_INR', coin: 'BTC', price: 5050000, qty: 0.2,  amt: 1010000 },
+                    { bid: 'btc_b1', ask: 'btc_s2', market: 'BTC_INR', coin: 'BTC', price: 5150000, qty: 0.15, amt: 772500  },
+                    // ETH_INR
+                    { bid: 'eth_b1', ask: 'eth_s1', market: 'ETH_INR', coin: 'ETH', price: 155000, qty: 1,   amt: 155000 },
+                    { bid: 'eth_b2', ask: 'eth_s2', market: 'ETH_INR', coin: 'ETH', price: 158000, qty: 0.5, amt: 79000  },
+                ];
+                for (const l of logEntries) {
+                    const t = new Date(now.getTime() - Math.random() * 86400000);
+                    const utcStr = t.toISOString().replace('T', ' ').substring(0, 19);
+                    const unixTs = Math.floor(t.getTime() / 1000);
+                    await conn.query(
+                        "INSERT INTO dbt_biding_log (bid_id, bid_type, bid_price, complete_qty, complete_amount, user_id, currency_symbol, market_symbol, success_time, success_time_utc, success_time_unix, fees_amount, available_amount, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 1)",
+                        [id(l.bid), 'BUY',  l.price, l.qty, l.amt, seedUserId, l.coin, l.market, t, utcStr, unixTs]
+                    );
+                    await conn.query(
+                        "INSERT INTO dbt_biding_log (bid_id, bid_type, bid_price, complete_qty, complete_amount, user_id, currency_symbol, market_symbol, success_time, success_time_utc, success_time_unix, fees_amount, available_amount, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 1)",
+                        [id(l.ask), 'SELL', l.price, l.qty, l.amt, seedUserId, l.coin, l.market, t, utcStr, unixTs]
+                    );
+                }
+                console.log(`[autoMigrate] Seeded ${logEntries.length * 2} trade logs in dbt_biding_log`);
+            }
+        }
+
         conn.release();
         console.log('[autoMigrate] Schema checks complete.');
     } catch (err) {

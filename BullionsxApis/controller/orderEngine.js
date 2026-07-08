@@ -71,8 +71,8 @@ async function insertTradeLog(conn, logData) {
   const columns = Object.keys(logData);
   const values = Object.values(logData);
   await conn.query(
-    `INSERT INTO dbt_biding_log (${columns.join(', ')}) VALUES (?)`,
-    [values]
+    `INSERT INTO dbt_biding_log (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`,
+    values
   );
 }
 

@@ -285,6 +285,9 @@ router
         'SELECT w.*, u.first_name, u.last_name, u.email FROM tbl_withdraw w LEFT JOIN dbt_user u ON w.user_id = u.user_id COLLATE utf8mb4_general_ci WHERE w.status = ? ORDER BY w.date DESC LIMIT 5',
         ['pending']
       );
+      const [bidingLogCount] = await conn.query('SELECT COUNT(*) AS cnt FROM dbt_biding_log');
+      const [bidingLogRows] = await conn.query('SELECT log_id, bid_type, bid_price, complete_qty, market_symbol, success_time FROM dbt_biding_log ORDER BY log_id DESC LIMIT 20');
+      const [openOrderCount] = await conn.query("SELECT COUNT(*) AS cnt FROM dbt_biding WHERE status = 2");
       conn.release();
       res.json({
         dbt_cryptocoin_columns: cryptoCols.map(c => c.Field),
@@ -294,7 +297,10 @@ router
         pending_withdrawals: pendingWithdrawals[0].cnt,
         total_withdrawals: totalWithdrawals[0].cnt,
         admin_users: adminUsers,
-        admin_query_test: adminQueryTest
+        admin_query_test: adminQueryTest,
+        dbt_biding_log_count: bidingLogCount[0].cnt,
+        dbt_biding_log_recent: bidingLogRows,
+        dbt_biding_open_orders: openOrderCount[0].cnt
       });
     } catch (err) {
       res.status(500).json({ error: err.message });
