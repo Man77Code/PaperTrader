@@ -126,7 +126,9 @@ exports.getCoinDetail = async (req, res) => {
     let networks = [];
     try {
         [networks] = await conn.query('SELECT * FROM dbt_coin_network WHERE coin_symbol = ? AND status = 1', [symbol]);
-    } catch (_) { networks = []; }
+    } catch (e) {
+        console.error(`[getCoinDetail] network query error for ${symbol}:`, e.message);
+    }
 
     const [priceRows] = await conn.query(
       'SELECT last_price FROM dbt_coinhistory WHERE coin_symbol = ? ORDER BY id DESC LIMIT 1', [symbol]

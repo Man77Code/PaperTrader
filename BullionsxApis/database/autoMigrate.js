@@ -117,6 +117,8 @@ async function ensureStakingSchema() {
             `);
             console.log('[autoMigrate] Seeded default coin networks');
         }
+        const [netCount] = await conn.query('SELECT COUNT(*) AS cnt FROM dbt_coin_network');
+        console.log(`[autoMigrate] dbt_coin_network has ${netCount[0].cnt} rows`);
 
         try {
             await conn.query(`DROP TABLE IF EXISTS dbt_staking_plan`);

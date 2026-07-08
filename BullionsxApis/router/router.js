@@ -265,4 +265,20 @@ router
   .route('/api/v1/admin/withdrawal/:id/reject')
   .patch(auth, adminAuth, adminWithdraw.rejectWithdrawal);
 
+// Debug: check DB state
+const connect = require('../config/Mysqlcon');
+router
+  .route('/api/v1/debug/db-check')
+  .get(async (_req, res) => {
+    try {
+      const conn = await connect();
+      const [networks] = await conn.query('SELECT * FROM dbt_coin_network');
+      const [cols] = await conn.query("SHOW COLUMNS FROM dbt_coin_network");
+      conn.release();
+      res.json({ coin_network_cols: cols.map(c => c.Field), networks });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
 module.exports = router;
