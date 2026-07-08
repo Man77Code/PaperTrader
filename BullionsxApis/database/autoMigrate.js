@@ -91,6 +91,14 @@ async function ensureStakingSchema() {
         `);
         console.log('[autoMigrate] Ensured dbt_coin_network table');
 
+        try {
+            await conn.query("ALTER TABLE dbt_cryptocoin ADD COLUMN coin_position INT DEFAULT 0");
+            console.log('[autoMigrate] Added coin_position column');
+        } catch (_) {}
+        try {
+            await conn.query("UPDATE dbt_cryptocoin SET coin_position = id WHERE coin_position IS NULL OR coin_position = 0");
+        } catch (_) {}
+
         const [existingNetworks] = await conn.query('SELECT COUNT(*) AS cnt FROM dbt_coin_network');
         if (existingNetworks[0].cnt === 0) {
             await conn.query(`

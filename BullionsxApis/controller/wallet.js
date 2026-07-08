@@ -11,7 +11,12 @@ exports.getOverview = async (req, res) => {
     conn = await pool.getConnection();
     const userId = req.user.user_id;
 
-    const [coins] = await conn.query('SELECT * FROM dbt_cryptocoin ORDER BY coin_position ASC');
+    let coins;
+    try {
+      [coins] = await conn.query('SELECT * FROM dbt_cryptocoin ORDER BY coin_position ASC');
+    } catch (_) {
+      [coins] = await conn.query('SELECT * FROM dbt_cryptocoin');
+    }
     const [balances] = await conn.query('SELECT * FROM dbt_balance WHERE user_id = ?', [userId]);
     const [prices] = await conn.query(
       'SELECT ch.coin_symbol, ch.last_price FROM dbt_coinhistory ch INNER JOIN (SELECT coin_symbol, MAX(id) as maxid FROM dbt_coinhistory GROUP BY coin_symbol) latest ON ch.id = latest.maxid'
