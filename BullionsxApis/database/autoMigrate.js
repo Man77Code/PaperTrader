@@ -65,6 +65,10 @@ async function ensureStakingSchema() {
             await conn.query(`ALTER TABLE dbt_user ADD COLUMN is_admin tinyint(1) DEFAULT 0`);
             console.log('[autoMigrate] Added is_admin column');
         } catch (_) {}
+        try {
+            await conn.query(`ALTER TABLE dbt_user ADD COLUMN googleauth varchar(255) DEFAULT NULL`);
+            console.log('[autoMigrate] Added googleauth column');
+        } catch (_) {}
 
         try {
             await conn.query('ALTER TABLE dbt_balance MODIFY COLUMN sharewallet DECIMAL(20,8) DEFAULT 0.00000000 NOT NULL');
