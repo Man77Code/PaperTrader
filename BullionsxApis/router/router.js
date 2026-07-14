@@ -16,6 +16,7 @@ const { openorderst2 } = require('../controller/userdata');
 const { openorderst3 } = require('../controller/userdata');
 const { openorderst4, openorderst5, insertdata, getMe, getBalance, getHoldings, getLeaderboard, getPortfolio } = require('../controller/userdata');
 const { placeBuyOrder, placeSellOrder, cancelOrder } = require('../controller/orderEngine');
+const { getTradeHistory } = require('../controller/tradeHistory');
 
 const {
     getOrderBookStats,
@@ -91,6 +92,10 @@ router
 router
     .route('/coin_history')
     .get(coinhistory);
+
+router
+  .route('/api/v1/trade-history')
+  .get(auth, getTradeHistory);    
 
 
 router
